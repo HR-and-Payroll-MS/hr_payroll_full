@@ -1,0 +1,77 @@
+--- PAYROLL DIAGNOSTIC ---
+
+1. PAYROLL PERIODS (January 2026):
+Found 1 periods for Jan 2026.
+ID: 1, Status: generated, Created: 2026-01-05 05:55:47.089384+00:00
+
+2. EMPLOYEES (Beza):
+Name: Bezawit Dereje (ID: 110), Status: Active, EmpID: EMP0110
+
+3. ALL PAYSLIPS FOR JAN 2026 PERIODS:
+Period ID 1 has 66 payslips.
+  Payslip ID: 2714, Employee: Biruk Aklilu (EmpID: 133), Bonus: 0.00
+  Payslip ID: 2715, Employee: Current Member (EmpID: 45), Bonus: 0.00
+  Payslip ID: 2716, Employee: Current Member (EmpID: 47), Bonus: 0.00
+  Payslip ID: 2717, Employee: Current Member (EmpID: 49), Bonus: 0.00
+  Payslip ID: 2718, Employee: Current Member (EmpID: 51), Bonus: 0.00
+  Payslip ID: 2719, Employee: Debug Manager (EmpID: 99), Bonus: 0.00
+  Payslip ID: 2720, Employee: Debug User (EmpID: 40), Bonus: 0.00
+  Payslip ID: 2721, Employee: Dept Manager (EmpID: 42), Bonus: 0.00
+  Payslip ID: 2722, Employee: Dept Manager (EmpID: 81), Bonus: 0.00
+  Payslip ID: 2723, Employee: Dept Manager (EmpID: 86), Bonus: 0.00
+  Payslip ID: 2724, Employee: Dept Manager (EmpID: 90), Bonus: 0.00
+  Payslip ID: 2725, Employee: Emp Rep (EmpID: 109), Bonus: 0.00
+  Payslip ID: 2726, Employee: Emp Test (EmpID: 105), Bonus: 0.00
+  Payslip ID: 2727, Employee: Emp1 Test (EmpID: 82), Bonus: 0.00
+  Payslip ID: 2728, Employee: Emp1 Test (EmpID: 87), Bonus: 0.00
+  Payslip ID: 2729, Employee: Emp1 Test (EmpID: 91), Bonus: 0.00
+  Payslip ID: 2730, Employee: Emp2 Test (EmpID: 83), Bonus: 0.00
+  Payslip ID: 2731, Employee: Emp2 Test (EmpID: 88), Bonus: 0.00
+  Payslip ID: 2732, Employee: Emp2 Test (EmpID: 92), Bonus: 0.00
+  Payslip ID: 2733, Employee: Emp3 Test (EmpID: 84), Bonus: 0.00
+  Payslip ID: 2734, Employee: Emp3 Test (EmpID: 89), Bonus: 0.00
+  Payslip ID: 2735, Employee: Emp3 Test (EmpID: 93), Bonus: 0.00
+  Payslip ID: 2736, Employee: Employee One (EmpID: 100), Bonus: 0.00
+  Payslip ID: 2737, Employee: Employee Two (EmpID: 101), Bonus: 0.00
+  Payslip ID: 2738, Employee: Ermiyas Henok (EmpID: 7), Bonus: 0.00
+  Payslip ID: 2739, Employee: Eyob Tinsae (EmpID: 3), Bonus: 0.00
+  Payslip ID: 2740, Employee: Eyob Tinsae (EmpID: 5), Bonus: 0.00
+  Payslip ID: 2741, Employee: EyobTaye User (EmpID: 2), Bonus: 0.00
+  Payslip ID: 2742, Employee: EyobTaye User (EmpID: 6), Bonus: 0.00
+  Payslip ID: 2743, Employee: Full Month (EmpID: 139), Bonus: 0.00
+  Payslip ID: 2744, Employee: Future Employee (EmpID: 102), Bonus: 0.00
+  Payslip ID: 2745, Employee: Future Joiner (EmpID: 44), Bonus: 0.00
+  Payslip ID: 2746, Employee: Future Joiner (EmpID: 46), Bonus: 0.00
+  Payslip ID: 2747, Employee: Future Joiner (EmpID: 48), Bonus: 0.00
+  Payslip ID: 2748, Employee: Future Joiner (EmpID: 50), Bonus: 0.00
+  Payslip ID: 2749, Employee: HR Admin (EmpID: 64), Bonus: 0.00
+  Payslip ID: 2750, Employee: HR Manager (EmpID: 41), Bonus: 0.00
+  Payslip ID: 2751, Employee: HR Rep (EmpID: 107), Bonus: 0.00
+  Payslip ID: 2752, Employee: Iso User (EmpID: 106), Bonus: 0.00
+  Payslip ID: 2753, Employee: LM Rep (EmpID: 108), Bonus: 0.00
+  Payslip ID: 2754, Employee: LM Test (EmpID: 104), Bonus: 0.00
+  Payslip ID: 2755, Employee: Manager Alpha (EmpID: 65), Bonus: 0.00
+  Payslip ID: 2756, Employee: Manager Alpha (EmpID: 68), Bonus: 0.00
+  Payslip ID: 2757, Employee: Mid Month (EmpID: 140), Bonus: 0.00
+  Payslip ID: 2758, Employee: NoJoin Employee (EmpID: 103), Bonus: 0.00
+  Payslip ID: 2759, Employee: Regular Employee (EmpID: 43), Bonus: 0.00
+  Payslip ID: 2760, Employee: Seed Tester (EmpID: 127), Bonus: 0.00
+  Payslip ID: 2761, Employee: Seud Abdulsemed (EmpID: 4), Bonus: 0.00
+  Payslip ID: 2762, Employee: Seud Abdulsemed (EmpID: 8), Bonus: 0.00
+  Payslip ID: 2763, Employee: System Administrator (EmpID: 1), Bonus: 0.00
+  Payslip ID: 2764, Employee: TestEmp User (EmpID: 131), Bonus: 0.00
+  Payslip ID: 2765, Employee: TestMgr User (EmpID: 130), Bonus: 0.00
+  Payslip ID: 2766, Employee: admin_test User (EmpID: 138), Bonus: 0.00
+  Payslip ID: 2767, Employee: biruk biruk (EmpID: 129), Bonus: 0.00
+  Payslip ID: 2768, Employee: debug_mgr User (EmpID: 98), Bonus: 0.00
+  Payslip ID: 2769, Employee: dm_tester User (EmpID: 85), Bonus: 0.00
+  Payslip ID: 2770, Employee: hr@test.com User (EmpID: 9), Bonus: 0.00
+  Payslip ID: 2771, Employee: hr_1d2014f2 User (EmpID: 67), Bonus: 0.00
+  Payslip ID: 2772, Employee: hr_c36f0f9b User (EmpID: 70), Bonus: 0.00
+  Payslip ID: 2773, Employee: hr_cc0fbc46 User (EmpID: 75), Bonus: 0.00
+  Payslip ID: 2774, Employee: manager_1d2014f2 User (EmpID: 69), Bonus: 0.00
+  Payslip ID: 2775, Employee: manager_a User (EmpID: 66), Bonus: 0.00
+  Payslip ID: 2776, Employee: news_admin User (EmpID: 132), Bonus: 0.00
+  Payslip ID: 2777, Employee: seed_tester User (EmpID: 128), Bonus: 0.00
+  Payslip ID: 2778, Employee: user_full User (EmpID: 141), Bonus: 0.00
+  Payslip ID: 2779, Employee: Bezawit Dereje (EmpID: 110), Bonus: 500.00

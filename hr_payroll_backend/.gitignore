@@ -1,0 +1,47 @@
+# Environments
+.env
+.env.*
+env/
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+*.pyd
+*.pyo
+*.pdb
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Databases
+db.sqlite3
+*.sqlite3
+
+# Django
+local_settings.py
+media/
+
+# Tooling caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.pytype/
+.nox/
+.tox/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Builds & packaging
+build/
+dist/
+
+# Editors & OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

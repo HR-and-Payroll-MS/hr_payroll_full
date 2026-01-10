@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "F:\E\SeniorX\hr_payroll_backend\apps\attendance\views.py", line 209, in get
+    target_date = request.query_params.get('date', date.today().isoformat())
+                                                   ^^^^
+UnboundLocalError: cannot access local variable 'date' where it is not associated with a value

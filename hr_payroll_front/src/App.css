@@ -1,0 +1,227 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+
+/* <div class="shadow-[10px_10px_15px_0px_rgba(0,0,0,0.3)]"></div>  <!-- Down-right -->
+<div class="shadow-[-10px_-10px_20px_rgba(0,0,0,0.2)]"></div>   <!-- Up-left --> 
+<div class="shadow-[inset_0_10px_20px_rgba(0,0,0,0.2)]"></div>    <!-- Inset from top -->
+<div class="shadow-[inset_10px_0_15px_0_rgba(0,0,0,0.3)]"></div> <!-- Inset from left -->
+
+<div class="shadow-[0_10px_20px] shadow-blue-500/50"></div>  <!-- Custom offset + colored shadow -->*/
+
+.bgx{
+    background-color: #121828;
+    color:white;
+}
+.bgx2{
+    background-color:#329A75;
+}
+.goBeyond{
+    left: -30px;
+}
+@layer utilities{
+    .scrollbar-hidden::-webkit-scrollbar{
+        display:none;
+    }
+    .scrollbar-hidden{
+        scrollbar-width:none;
+    }
+    .scrollbar-hidden{
+        -ms-overflow-style:none;
+    }
+
+    @layer utilities {
+
+  /* Default: Fully hidden */
+  .hover-scrollbar {
+    scrollbar-width: none;        /* Firefox hide */
+    -ms-overflow-style: none;     /* IE hide */
+  }
+
+  .hover-scrollbar::-webkit-scrollbar {
+    width: 0;                     /* Chrome hide */
+    height: 0;
+  }
+
+  /* On hover – show ONLY thumb */
+  .hover-scrollbar:hover {
+    scrollbar-width: thin;        /* Firefox (thumb only) */
+  }
+
+  .hover-scrollbar:hover::-webkit-scrollbar {
+    width: 6px;                   /* thickness */
+    background: transparent;      /* removes track */
+  }
+
+  /* Remove TRACK completely */
+  .hover-scrollbar:hover::-webkit-scrollbar-track {
+    background: transparent !important;
+    border: none !important;
+  }
+  
+  /* Fix track still showing on some Chrome versions */
+  .hover-scrollbar:hover::-webkit-scrollbar-track-piece {
+    background: transparent !important;
+  }
+  .hover-bar::-webkit-scrollbar {
+    width: 6px;                   /* thickness */
+    background: transparent;      /* removes track */
+  }
+
+  /* Remove TRACK completely */
+  .hover-bar::-webkit-scrollbar-track {
+    background: transparent !important;
+    border: none !important;
+  }
+  
+  /* Fix track still showing on some Chrome versions */
+  .hover-bar::-webkit-scrollbar-track-piece {
+    background: transparent !important;
+  }
+
+  /* The thumb (only part you want visible) */
+  .hover-scrollbar:hover::-webkit-scrollbar-thumb {
+    background-color: #a1a1aa; /* gray-400 */
+    border-radius: 20px;
+    border: 2px solid transparent; /* removes track outline */
+    background-clip: content-box;  /* hides background behind thumb */
+  }
+  .hover-bar:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 128, 0, 0.545); /* gray-400 */
+    border-radius: 20px;
+    border: 2px solid transparent; /* removes track outline */
+    background-clip: content-box;  /* hides background behind thumb */
+  }
+
+  /* Remove arrows completely */
+  .hover-scrollbar::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  /* Remove corner */
+  .hover-scrollbar::-webkit-scrollbar-corner {
+    background: transparent !important;
+  }
+  .hover-bar::-webkit-scrollbar-corner {
+    background: transparent !important;
+  }
+}
+
+     
+}
+ @keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+  background-size: 1000px 100%;
+  background-repeat: no-repeat;
+}
+
+/* Light mode */
+.animate-shimmer {
+  background-image: linear-gradient(to right, #f6f7f8 4%, #edeef1 25%, #f6f7f8 36%);
+}
+
+/* Dark mode override */
+.dark .animate-shimmer {
+  background-image: linear-gradient(to right, #1e293b 8%, #334155 25%, #1e293b 38%);
+}
+
+        @layer utilities {
+  /* Fancy multi-layer box-shadow */
+  .shadow-fancy {
+    box-shadow: 
+      5px 5px 7px rgba(0, 0, 0, 0.25),       /* outer shadow */
+      inset 2px 2px 5px rgba(255, 255, 255, 0.25), /* inner highlight */
+      inset -3px -3px 5px rgba(0, 0, 0, 0.5); /* inner shadow */
+  }
+}
+
+
+.loader{
+  width:50px;
+  aspect-ratio:1;
+  box-shadow:0 0 0 3px #fff inset;
+  border-radius:50%;
+  position: relative;
+}
+.loader::before,
+.loader::after{content:"";
+position:absolute;
+top:5px;
+left:calc(50%- 12.5px);
+box-shadow:inherit;
+width:25px;
+aspect-ratio:1;
+border-radius:50%;
+transform-origin:50% calc(100%-5px);
+animation:loader-spin 1.5 linear infinite;}
+.loader::after {
+  top:calc(100% + 2px);
+  transform-origin:50%-27px;
+  animation-delay: -0.75;
+}
+@keyframes loader-spin {
+  to{
+    transform:rotate(360deg)
+  }
+}
+
+/* Global CSS - replace your previous block with this */
+
+.custom-tinymce-wrapper .tox-tinymce {
+  border: 1px solid #e2e8f0 !important; /* Light mode default border */
+  border-radius: 8px !important;
+  overflow: hidden; /* Ensures glow doesn't get clipped */
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Remove any residual default focus pseudo-elements */
+.custom-tinymce-wrapper .tox-edit-area::before,
+.custom-tinymce-wrapper .tox-tinymce::before {
+  display: none !important;
+}
+
+/* Strong custom green focus indicator */
+.custom-tinymce-wrapper .tox-tinymce.tox-tinymce--focused {
+  border-color: #22c55e !important; /* Solid green border */
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.35) !important; /* Green glow */
+}
+
+/* Dark mode adjustments (if your app adds .dark class to <html> or <body>) */
+.dark .custom-tinymce-wrapper .tox-tinymce {
+  border-color: #374151 !important; /* Darker default border */
+}
+
+.dark .custom-tinymce-wrapper .tox-tinymce.tox-tinymce--focused {
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.45) !important; /* Slightly brighter glow in dark */
+}
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(-5%); }
+  50% { transform: translateY(0); }
+}
+.animate-bounce-slow {
+  animation: bounce-slow 3s infinite ease-in-out;
+}
+
+/* ----------------------- */
+/* Custom Scrollbar for the dark theme */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #334155;
+  border-radius: 20px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #475569;
+}
