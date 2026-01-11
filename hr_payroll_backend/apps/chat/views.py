@@ -10,6 +10,7 @@ from django.db.models import Q
 from django.contrib.auth import get_user_model
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer, ChatUserSerializer
+from config.socket_app import sio
 from apps.employees.models import Employee
 
 User = get_user_model()
@@ -26,10 +27,27 @@ class ConversationViewSet(viewsets.ModelViewSet):
         conversation = self.get_object()
         # Mark messages as read
         conversation.messages.exclude(sender=request.user).update(is_read=True)
+        # Emit read-receipts to other participant and optionally to reader to clear badges
+        try:
+            other_ids = list(conversation.participants.exclude(id=request.user.id).values_list('id', flat=True))
+            if other_ids:
+                other_id = other_ids[0]
+                # Notify the other participant that their messages were read
+                sio.emit('messages_read', {
+                    'conversationId': conversation.id,
+                    'readerId': request.user.id,
+                }, room=f"user_{other_id}")
+            # Notify reader client to clear unread for this conversation
+            sio.emit('messages_read', {
+                'conversationId': conversation.id,
+                'readerId': request.user.id,
+            }, room=f"user_{request.user.id}")
+        except Exception as e:
+            print(f"[socket] emit messages_read error: {e}")
         
         # Determine strict limit or pagination later
         messages = conversation.messages.all()
-        serializer = MessageSerializer(messages, many=True)
+        serializer = MessageSerializer(messages, many=True, context={'request': request})
         return Response(serializer.data)
     
     @action(detail=False, methods=['post'])
@@ -104,18 +122,33 @@ class FileUploadView(APIView):
              return Response({'error': 'Conversation not found'}, status=404)
              
         msg_type = request.data.get('type', 'file')
+        reply_to_id = request.data.get('replyTo')
         
-        message = Message.objects.create(
+        message = Message(
             conversation=conversation,
             sender=request.user,
             attachment=file_obj,
             message_type=msg_type,
             content=request.data.get('content', '')
         )
+        if reply_to_id:
+            try:
+                rt = Message.objects.get(id=reply_to_id, conversation=conversation)
+                message.reply_to = rt
+            except Message.DoesNotExist:
+                pass
+        message.save()
         
-        # Trigger Socket Emit here (conceptually), or let frontend emit 'new_message' with the data returned here.
-        # If we return the message data, frontend can just render it or emit it.
-        # Better: Frontend upload -> Retrieve URL -> Socket Emit (with URL).
-        # But `attachment` field in Django automatically saves file.
+        payload = MessageSerializer(message).data
+        # Find the other participant to notify
+        other_ids = list(conversation.participants.exclude(id=request.user.id).values_list('id', flat=True))
+        if other_ids:
+            receiver_id = other_ids[0]
+            try:
+                # Emit to both rooms, mirroring socket send_message behavior
+                sio.emit('receive_message', payload, room=f"user_{receiver_id}")
+                sio.emit('receive_message', payload, room=f"user_{request.user.id}")
+            except Exception as e:
+                print(f"Socket emit error (upload): {e}")
         
-        return Response(MessageSerializer(message).data)
+        return Response(payload)

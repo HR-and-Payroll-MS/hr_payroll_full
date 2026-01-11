@@ -145,8 +145,8 @@ export default function ProfileHeader({ employeeData, setEmployeeData }) {
           { label: "Office", value: job?.office || "Unpixel Studio" },
           { 
             label: "Line Manager", 
-            value: job?.linemanager || "Skylar Catzoni", 
-            img: job?.manager_photo || "/pic/download (48).png" 
+            value: job?.linemanager?.name || job?.linemanager || "Skylar Catzoni", 
+            img: job?.linemanager?.photo || "/pic/download (48).png" 
           }
         ].map((stat, i) => (
           <div key={i} className="flex flex-col">

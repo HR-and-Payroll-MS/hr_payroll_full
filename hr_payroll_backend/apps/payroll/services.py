@@ -19,6 +19,9 @@ from apps.leaves.models import LeaveRequest
 from apps.policies.models import Policy
 from apps.company.models import CompanyInfo
 
+# Rounding helpers
+from decimal import ROUND_HALF_UP, ROUND_UP, ROUND_DOWN
+
 
 class PayrollCalculationService:
     """
@@ -26,10 +29,12 @@ class PayrollCalculationService:
     Considers: policies, tax codes, overtime, attendance, leaves.
     """
     
-    def __init__(self, period: PayrollPeriod, performed_by: Employee = None, tax_code_id: int = None):
+    def __init__(self, period: PayrollPeriod, performed_by: Employee = None, tax_code_id: int = None, tax_code_version_id: int = None, override_adjustments: dict = None):
         self.period = period
         self.performed_by = performed_by
         self.tax_code_id = tax_code_id
+        self.tax_code_version_id = tax_code_version_id
+        self.override_adjustments = override_adjustments or {}
         self.month_num = self._get_month_number(period.month)
         self.year = period.year
         self.working_days = self._calculate_working_days()
@@ -91,7 +96,23 @@ class PayrollCalculationService:
         """Get the tax version applicable for this period."""
         if not self.tax_code:
             return None
-        
+        # Explicit override if provided
+        if self.tax_code_version_id:
+            try:
+                tv = TaxCodeVersion.objects.get(id=self.tax_code_version_id)
+                if tv.tax_code_id != self.tax_code.id:
+                    return None
+                if not tv.is_active:
+                    return None
+                period_date = date(self.year, self.month_num, 1)
+                if tv.valid_from and tv.valid_from > period_date:
+                    return None
+                if tv.valid_to and tv.valid_to < period_date:
+                    return None
+                return tv
+            except TaxCodeVersion.DoesNotExist:
+                return None
+
         period_date = date(self.year, self.month_num, 1)
         return TaxCodeVersion.objects.filter(
             tax_code=self.tax_code,
@@ -137,6 +158,27 @@ class PayrollCalculationService:
             'email': '',
             'logo': None
         }
+
+    def _round(self, amount: Decimal) -> Decimal:
+        """Round amounts based on tax version rounding rules (default 2 decimals, nearest)."""
+        if amount is None:
+            return Decimal('0')
+        rules = getattr(self.tax_version, 'rounding_rules', {}) or {}
+        precision = int(rules.get('precision', 2)) if isinstance(rules.get('precision', 2), (int, float, str)) else 2
+        method = str(rules.get('method', 'nearest')).lower()
+
+        quant = Decimal('1').scaleb(-precision)  # 10^-precision
+        if method == 'up':
+            rounding = ROUND_UP
+        elif method == 'down':
+            rounding = ROUND_DOWN
+        else:
+            rounding = ROUND_HALF_UP  # default nearest
+
+        try:
+            return Decimal(amount).quantize(quant, rounding=rounding)
+        except Exception:
+            return Decimal('0').quantize(quant, rounding=rounding)
     
     def generate_payroll(self):
         """Generate payslips for all active employees."""
@@ -179,6 +221,11 @@ class PayrollCalculationService:
     def _calculate_for_employee(self, employee: Employee) -> Payslip:
         """Calculate individual payslip with all components."""
         
+        issues = []
+        # Pre-check: Missing tax version
+        if not self.tax_version:
+            issues.append('No active tax version for period; income tax set to 0.')
+
         # 1. Base salary from employee record
         full_base_salary = employee.salary or Decimal('0')
         
@@ -222,6 +269,13 @@ class PayrollCalculationService:
         
         # 3. Calculate overtime
         overtime_data = self._calculate_overtime(employee, base_salary)
+
+        # 3a. One-off and offset adjustments
+        # Allow override adjustments (per-payslip temporary inputs)
+        one_off_source = self.override_adjustments.get('one_off', getattr(employee, 'one_off', 0) or 0)
+        offset_source = self.override_adjustments.get('offset', getattr(employee, 'offset', 0) or 0)
+        one_off_val = Decimal(str(one_off_source)).quantize(Decimal('0.01'))
+        offset_val = Decimal(str(offset_source)).quantize(Decimal('0.01'))
         
         # 4. Get attendance data
         attendance_data = self._get_attendance_data(employee)
@@ -243,15 +297,35 @@ class PayrollCalculationService:
         # Update attendance data for payslip details
         attendance_data['absent_days'] = final_absent_days
         
-        # 6. Calculate gross pay
-        gross_pay = base_salary + Decimal(str(total_allowances)) + overtime_data['pay']
+        # 6. Calculate gross pay (include positive one-off and offset credits)
+        extra_earnings = Decimal('0')
+        if one_off_val > 0:
+            extra_earnings += one_off_val
+        if offset_val < 0:
+            extra_earnings += (-offset_val)
+
+        gross_pay = base_salary + Decimal(str(total_allowances)) + overtime_data['pay'] + extra_earnings
+        gross_pay = self._round(gross_pay)
         
         # 7. Apply absence deduction (pro-rata)
         daily_rate = base_salary / Decimal(str(self.working_days)) if self.working_days > 0 else Decimal('0')
         absence_deduction = daily_rate * Decimal(str(final_absent_days + leave_data['unpaid_days']))
+        absence_deduction = self._round(absence_deduction)
         
-        # 8. Calculate deductions
+        # 8. Calculate deductions (include positive offset and negative one-off as post-tax)
         deductions_data = self._calculate_deductions(employee, gross_pay)
+        if offset_val > 0:
+            deductions_data.append({
+                'label': 'Offset Adjustment',
+                'amount': offset_val,
+                'is_pretax': False
+            })
+        if one_off_val < 0:
+            deductions_data.append({
+                'label': 'One-off Adjustment',
+                'amount': (-one_off_val),
+                'is_pretax': False
+            })
         
         # Add statutory deductions from tax code config
         statutory_configs = getattr(self.tax_version, 'statutory_deductions_config', [])
@@ -267,11 +341,39 @@ class PayrollCalculationService:
                         'is_pretax': True # Statutory usually pre-tax
                     })
 
+        # Pension (employee contribution as pre-tax deduction; employer recorded for info)
+        employee_pension_amount = Decimal('0')
+        employer_pension_amount = Decimal('0')
+        pension_cfg = getattr(self.tax_version, 'pension_config', {}) or {}
+        try:
+            emp_pct = Decimal(str(pension_cfg.get('employeePercent', 0)))
+            empl_pct = Decimal(str(pension_cfg.get('employerPercent', 0)))
+        except Exception:
+            emp_pct = Decimal('0')
+            empl_pct = Decimal('0')
+
+        if emp_pct > 0:
+            employee_pension_amount = (gross_pay * (emp_pct / Decimal('100'))).quantize(Decimal('0.01'))
+            # Avoid duplicate if a pension deduction already exists
+            if not any('pension' in d['label'].lower() for d in deductions_data):
+                deductions_data.append({
+                    'label': 'Pension (Employee)',
+                    'amount': employee_pension_amount,
+                    'is_pretax': True
+                })
+
+        if empl_pct > 0:
+            employer_pension_amount = (gross_pay * (empl_pct / Decimal('100'))).quantize(Decimal('0.01'))
+
         total_deductions = sum(d['amount'] for d in deductions_data) + absence_deduction
+        total_deductions = self._round(total_deductions)
         
         # 9. Calculate tax
-        # Apply exemptions from tax code config
-        taxable_income = gross_pay - self._get_pretax_deductions(deductions_data)
+        # Apply exemptions from tax code config and exclude non-taxable allowances from tax base
+        non_taxable_allowances_total = Decimal(str(sum(
+            a['amount'] for a in allowances_data if not a.get('is_taxable', True)
+        )))
+        taxable_income = gross_pay - self._get_pretax_deductions(deductions_data) - non_taxable_allowances_total
         
         exemptions_configs = getattr(self.tax_version, 'exemptions_config', [])
         for ec in exemptions_configs:
@@ -280,9 +382,18 @@ class PayrollCalculationService:
                 taxable_income = max(0, taxable_income - limit)
 
         tax_amount = self._calculate_tax(taxable_income)
+        tax_amount = self._round(tax_amount)
+
+        # Anomaly: Tax exceeds 50% of taxable income
+        try:
+            if taxable_income > 0 and tax_amount > (taxable_income * Decimal('0.5')):
+                issues.append('Tax exceeds 50% of taxable income; review tax brackets configuration.')
+        except Exception:
+            pass
         
         # 10. Calculate net pay
         net_pay = gross_pay - total_deductions - tax_amount
+        net_pay = self._round(net_pay)
         
         # Build detailed breakdown
         all_earnings = [
@@ -297,8 +408,20 @@ class PayrollCalculationService:
         
         if overtime_data['pay'] > 0:
             all_earnings.append({
-                'label': f"Overtime ({overtime_data['hours']}h × {overtime_data['rate']}x)",
+                'label': overtime_data.get('label', f"Overtime ({overtime_data['hours']}h × {overtime_data['rate']}x)"),
                 'amount': overtime_data['pay']
+            })
+
+        # Add one-off and offset credits to earnings breakdown
+        if one_off_val > 0:
+            all_earnings.append({
+                'label': 'One-off Adjustment',
+                'amount': one_off_val
+            })
+        if offset_val < 0:
+            all_earnings.append({
+                'label': 'Offset Credit',
+                'amount': (-offset_val)
             })
         
         all_deductions = deductions_data.copy()
@@ -319,18 +442,31 @@ class PayrollCalculationService:
             'month': f"{self.period.month} {self.period.year}",
             'paymentDate': date(self.year, self.month_num, 28).isoformat(),
             'paymentMethod': 'Bank Transfer',
-            'earnings': [{**e, 'amount': float(e['amount'])} for e in all_earnings],
-            'deductions': [{**d, 'amount': float(d['amount'])} for d in all_deductions],
+            'earnings': [{**e, 'amount': float(self._round(e['amount']))} for e in all_earnings],
+            'deductions': [{**d, 'amount': float(self._round(d['amount']))} for d in all_deductions],
             'attendance': {
                 'workedDays': attendance_data['worked_days'],
                 'absentDays': final_absent_days,
                 'leaveDays': leave_data['unpaid_days'],
                 'totalDays': self.working_days
             },
-            'gross': float(gross_pay),
-            'totalDeductions': float(total_deductions + tax_amount),
-            'net': float(net_pay)
+            'gross': float(self._round(gross_pay)),
+            'totalDeductions': float(self._round(total_deductions + tax_amount)),
+            'net': float(self._round(net_pay)),
+            'contributions': {
+                'employeePensionPercent': float(emp_pct),
+                'employeePension': float(self._round(employee_pension_amount)),
+                'employerPensionPercent': float(empl_pct),
+                'employerPension': float(self._round(employer_pension_amount))
+            },
+            'warnings': issues,
+            'adjustmentApplied': float(self._round(offset_val)) if offset_val != 0 else 0.0
         }
+
+        # Consume offset once after applying as carryover
+        if offset_val != 0:
+            employee.offset = Decimal('0')
+            employee.save(update_fields=['offset'])
         
         return Payslip(
             period=self.period,
@@ -350,7 +486,9 @@ class PayrollCalculationService:
             worked_days=attendance_data['worked_days'],
             absent_days=final_absent_days,
             leave_days=leave_data['unpaid_days'],
-            details=details
+            details=details,
+            has_issues=bool(issues),
+            issue_notes='; '.join(issues) if issues else ''
         )
     
     def _calculate_allowances(self, employee: Employee, base_salary: Decimal):
@@ -375,7 +513,8 @@ class PayrollCalculationService:
             
             allowances.append({
                 'label': allowance.name,
-                'amount': value.quantize(Decimal('0.01'))
+                'amount': value.quantize(Decimal('0.01')),
+                'is_taxable': bool(getattr(allowance, 'is_taxable', True))
             })
         
         # Get department/role-based allowances
@@ -396,7 +535,8 @@ class PayrollCalculationService:
                 
                 allowances.append({
                     'label': allowance.name,
-                    'amount': value.quantize(Decimal('0.01'))
+                    'amount': value.quantize(Decimal('0.01')),
+                    'is_taxable': bool(getattr(allowance, 'is_taxable', True))
                 })
         
         return allowances
@@ -415,42 +555,108 @@ class PayrollCalculationService:
             status='approved'
         )
         
-        total_hours = sum(Decimal(str(ot.hours)) for ot in overtime_requests)
-        
-        # Get overtime rate from policy or default
-        # Uses field name 'overtimeRate' from overtimePolicy
-        ot_rate = Decimal('1.5')  # Default 1.5x
-        weekend_rate = Decimal('2.0')  # Default 2x for weekends
-        holiday_rate = Decimal('2.5')  # Default 2.5x for holidays
-        
+        # Aggregate hours by day type
+        weekday_hours = Decimal('0')
+        weekend_hours = Decimal('0')
+        holiday_hours = Decimal('0')
+
+        # Policy-configured rates
+        base_ot_rate = Decimal('1.5')  # Default 1.5x
+        weekend_rate = Decimal('2.0')  # Default 2x
+        holiday_rate = Decimal('2.5')  # Default 2.5x
+
         if self.overtime_policy:
-            ot_rate = Decimal(str(self.overtime_policy.get('overtimeRate', '1.5')))
-            weekend_rate = Decimal(str(self.overtime_policy.get('weekendRate', '2.0')))
-            holiday_rate = Decimal(str(self.overtime_policy.get('holidayRate', '2.5')))
-        
-        # Get holiday overtime rate from holiday policy if available
-        if self.holiday_policy and self.holiday_policy.get('holidayPayRules'):
-            holiday_rate = Decimal(str(self.holiday_policy.get('holidayPayRules', {}).get('holidayOvertimeRate', holiday_rate)))
-        
-        # Calculate hourly rate (assuming standard 8-hour day, working_days month)
-        # Get working hours per day from shift policy
+            try:
+                base_ot_rate = Decimal(str(self.overtime_policy.get('overtimeRate', '1.5')))
+                weekend_rate = Decimal(str(self.overtime_policy.get('weekendRate', '2.0')))
+                holiday_rate = Decimal(str(self.overtime_policy.get('holidayRate', '2.5')))
+            except Exception:
+                pass
+
+        # Holiday policy override for holiday OT rate
+        try:
+            if self.holiday_policy and self.holiday_policy.get('holidayPayRules'):
+                holiday_rate = Decimal(str(self.holiday_policy.get('holidayPayRules', {}).get('holidayOvertimeRate', holiday_rate)))
+        except Exception:
+            pass
+
+        # Determine weekly off names from shift policy (e.g., ["Sat", "Sun"]) or fallback to standard weekend
+        weekly_off = []
+        if self.shift_policy:
+            weekly_off = self.shift_policy.get('weeklyOff', []) or []
+
+        # Map weekday index to name used in policy
+        weekday_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+        # Build set of holiday dates (YYYY-MM-DD) from policy
+        holiday_dates = set()
+        if self.holiday_policy:
+            fixed = self.holiday_policy.get('fixedHolidays', []) or []
+            company = self.holiday_policy.get('companyHolidays', []) or []
+            for h in fixed + company:
+                dstr = h.get('date')
+                if dstr:
+                    holiday_dates.add(dstr)
+
+        # Classify each OT request's hours
+        for ot in overtime_requests:
+            ot_date = ot.date
+            hours = Decimal(str(ot.hours))
+            # Holiday check first
+            if ot_date.isoformat() in holiday_dates:
+                holiday_hours += hours
+                continue
+            # Weekend/off-day check
+            day_name = weekday_names[ot_date.weekday()]
+            if weekly_off and day_name in weekly_off:
+                weekend_hours += hours
+            elif not weekly_off and ot_date.weekday() >= 5:
+                weekend_hours += hours
+            else:
+                weekday_hours += hours
+
+        total_hours = weekday_hours + weekend_hours + holiday_hours
+
+        # Calculate hourly rate (assuming standard working hours per day)
         hours_per_day = 8
         if self.shift_policy:
-            hours_per_day = self.shift_policy.get('workingHoursPerDay', 8)
-        
+            try:
+                hours_per_day = int(self.shift_policy.get('workingHoursPerDay', 8))
+            except Exception:
+                hours_per_day = 8
+
         monthly_hours = self.working_days * hours_per_day
         hourly_rate = base_salary / Decimal(str(monthly_hours)) if monthly_hours > 0 else Decimal('0')
-        
-        # TODO: Apply different rates based on whether OT was on weekend/holiday
-        # For now, use standard overtime rate
-        overtime_pay = hourly_rate * Decimal(str(total_hours)) * Decimal(str(ot_rate))
-        
+
+        # Compute pay by type
+        weekday_pay = self._round(hourly_rate * weekday_hours * base_ot_rate)
+        weekend_pay = self._round(hourly_rate * weekend_hours * weekend_rate)
+        holiday_pay = self._round(hourly_rate * holiday_hours * holiday_rate)
+        overtime_pay = self._round(weekday_pay + weekend_pay + holiday_pay)
+
+        # Build a descriptive label for payslip details
+        parts = []
+        if weekday_hours > 0:
+            parts.append(f"{weekday_hours}h wkday @{base_ot_rate}x")
+        if weekend_hours > 0:
+            parts.append(f"{weekend_hours}h wknd @{weekend_rate}x")
+        if holiday_hours > 0:
+            parts.append(f"{holiday_hours}h hol @{holiday_rate}x")
+        label = "Overtime (" + ", ".join(parts) + ")" if parts else "Overtime"
+
         return {
             'hours': total_hours,
-            'rate': ot_rate,
+            'rate': base_ot_rate,
             'weekendRate': weekend_rate,
             'holidayRate': holiday_rate,
-            'pay': overtime_pay.quantize(Decimal('0.01'))
+            'weekdayHours': weekday_hours,
+            'weekendHours': weekend_hours,
+            'holidayHours': holiday_hours,
+            'weekdayPay': weekday_pay,
+            'weekendPay': weekend_pay,
+            'holidayPay': holiday_pay,
+            'label': label,
+            'pay': overtime_pay
         }
     
     def _get_attendance_data(self, employee: Employee):

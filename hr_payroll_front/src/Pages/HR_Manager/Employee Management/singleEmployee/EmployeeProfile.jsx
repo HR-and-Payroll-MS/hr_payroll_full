@@ -108,11 +108,11 @@ function EmployeeProfile({employeeData,role}) {
             <div className="flex items-center gap-3 p-2 bg-white/50 dark:bg-slate-800/40 rounded-xl border border-slate-100 dark:border-slate-600/50">
                 <img
                     className="w-8 h-8 object-cover rounded-full border border-white dark:border-slate-700 shadow-sm"
-                    src={employeeData?.general?.profilepicture || "/pic/download (48).png"}
+                    src={employeeData?.job?.linemanager?.photo || "/pic/download (48).png"}
                     alt="Manager"
                 />
                 <p className="font-bold text-slate-700 dark:text-slate-200 text-xs">
-                  {employeeData?.job?.linemanager || "Skylar Catzoni"}
+                  {employeeData?.job?.linemanager?.name || employeeData?.job?.linemanager || "Not Assigned"}
                 </p>
             </div>
           </div>

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django.db import models
+from decimal import Decimal
 
 from .models import (
     PayrollPeriod, Payslip, PayrollApprovalLog, TaxCode, TaxCodeVersion,
@@ -50,23 +51,32 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return PayrollPeriod.objects.none()
 
-        # Check roles based on actual system group names
+        # Base queryset by role
+        qs = PayrollPeriod.objects.prefetch_related('payslips', 'approval_logs').all()
+
         user_groups = [g.name.upper() for g in user.groups.all()]
         is_hr_manager = any(r in user_groups for r in ['HR MANAGER', 'MANAGER', 'ADMIN'])
         is_payroll_officer = 'PAYROLL' in user_groups
 
-        # Superusers see everything
         if user.is_superuser:
-            return PayrollPeriod.objects.prefetch_related('payslips', 'approval_logs').all()
+            pass  # keep full queryset
+        elif is_hr_manager and not is_payroll_officer:
+            qs = qs.filter(status__in=['pending_approval', 'approved', 'finalized', 'rolled_back'])
+        else:
+            pass  # Payroll Officer: keep full queryset
 
-        # If user is in HR Manager role but NOT in Payroll role, filter statuses
-        if is_hr_manager and not is_payroll_officer:
-            return PayrollPeriod.objects.filter(
-                status__in=['pending_approval', 'approved', 'finalized', 'rolled_back']
-            ).prefetch_related('payslips', 'approval_logs')
+        # Apply server-side filters: month/year
+        month = self.request.query_params.get('month')
+        year = self.request.query_params.get('year')
+        if month:
+            qs = qs.filter(month=month)
+        if year:
+            try:
+                qs = qs.filter(year=int(year))
+            except ValueError:
+                pass
 
-        # Payroll Officers see all (to manage drafts/rolls)
-        return PayrollPeriod.objects.prefetch_related('payslips', 'approval_logs').all()
+        return qs
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -86,6 +96,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
         """Generate payslips for this period."""
         period = self.get_object()
         tax_code_id = request.data.get('tax_code_id')
+        tax_code_version_id = request.data.get('tax_code_version_id')
         
         if period.status not in ['draft', 'rolled_back', 'generated']:
             return Response(
@@ -96,7 +107,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
         employee = getattr(request.user, 'employee', None)
         
         try:
-            service = PayrollCalculationService(period, performed_by=employee, tax_code_id=tax_code_id)
+            service = PayrollCalculationService(period, performed_by=employee, tax_code_id=tax_code_id, tax_code_version_id=tax_code_version_id)
             payslips = service.generate_payroll()
             
             return Response({
@@ -223,6 +234,38 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
             })
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='reopen')
+    def reopen(self, request, pk=None):
+        """Reopen a generated or rolled back payroll period to 'draft' for editing (Payroll Officer)."""
+        period = self.get_object()
+
+        user = request.user
+        is_payroll_officer = (
+            user.is_superuser
+            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__icontains='PAYROLL').exists()
+        )
+        if not is_payroll_officer:
+            return Response({'error': 'Only Payroll Officers can reopen payroll to draft'}, status=status.HTTP_403_FORBIDDEN)
+
+        if period.status not in ['generated', 'rolled_back']:
+            return Response({'error': f"Cannot reopen payroll in '{period.status}' status"}, status=status.HTTP_400_BAD_REQUEST)
+
+        old_status = period.status
+        period.status = 'draft'
+        period.save()
+
+        PayrollApprovalLog.objects.create(
+            period=period,
+            action='reopened',
+            performed_by=getattr(user, 'employee', None),
+            notes='Reopened to draft for editing',
+            previous_status=old_status,
+            new_status='draft'
+        )
+
+        return Response({'message': 'Payroll reopened to draft', 'period': PayrollPeriodSerializer(period).data})
     
     def _notify_hr_managers(self, period, title, message):
         """Send notification to all HR Managers."""
@@ -313,6 +356,115 @@ class PayslipViewSet(viewsets.ModelViewSet):
             'message': f'Notification sent to {payslip.employee.fullname}',
             'payslip': PayslipSerializer(payslip).data
         })
+
+    @action(detail=True, methods=['post'], url_path='regenerate')
+    def regenerate(self, request, pk=None):
+        """Regenerate a single employee's payslip for the payslip's period.
+        Allowed when period status is 'draft', 'rolled_back', or 'generated'.
+        Optionally accepts 'tax_code_id' to override configured tax code.
+        """
+        payslip = self.get_object()
+        period = payslip.period
+
+        # Only Payroll Officers (or superusers) can regenerate
+        user = request.user
+        is_payroll_officer = (
+            user.is_superuser
+            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__icontains='PAYROLL').exists()
+        )
+        if not is_payroll_officer:
+            return Response({'error': 'Only Payroll Officers can regenerate payslips'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Check period status
+        if period.status not in ['draft', 'rolled_back', 'generated']:
+            return Response(
+                {'error': f"Cannot regenerate payslip in '{period.status}' status. Allowed: draft, rolled_back, generated."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        tax_code_id = request.data.get('tax_code_id')
+        tax_code_version_id = request.data.get('tax_code_version_id')
+        # Optional per-payslip temporary adjustments
+        override_adjustments = {}
+        if 'one_off' in request.data or 'offset' in request.data:
+            try:
+                if 'one_off' in request.data:
+                    override_adjustments['one_off'] = request.data.get('one_off')
+                if 'offset' in request.data:
+                    override_adjustments['offset'] = request.data.get('offset')
+            except Exception:
+                override_adjustments = {}
+        performer = getattr(user, 'employee', None)
+
+        try:
+            service = PayrollCalculationService(period, performed_by=performer, tax_code_id=tax_code_id, tax_code_version_id=tax_code_version_id, override_adjustments=override_adjustments)
+            new_pslip = service._calculate_for_employee(payslip.employee)
+
+            # Update existing payslip fields from newly calculated values
+            payslip.base_salary = new_pslip.base_salary
+            payslip.total_allowances = new_pslip.total_allowances
+            payslip.bonus = new_pslip.bonus
+            payslip.overtime_hours = new_pslip.overtime_hours
+            payslip.overtime_rate = new_pslip.overtime_rate
+            payslip.overtime_pay = new_pslip.overtime_pay
+            payslip.total_deductions = new_pslip.total_deductions
+            payslip.tax_amount = new_pslip.tax_amount
+            payslip.gross_pay = new_pslip.gross_pay
+            payslip.net_pay = new_pslip.net_pay
+            payslip.tax_code = new_pslip.tax_code
+            payslip.tax_code_version = new_pslip.tax_code_version
+            payslip.worked_days = new_pslip.worked_days
+            payslip.absent_days = new_pslip.absent_days
+            payslip.leave_days = new_pslip.leave_days
+            payslip.details = new_pslip.details
+            payslip.has_issues = new_pslip.has_issues
+            payslip.issue_notes = new_pslip.issue_notes
+            payslip.save()
+
+            # Log the regeneration in approval logs without changing status
+            PayrollApprovalLog.objects.create(
+                period=period,
+                action='regenerated_single',
+                performed_by=performer,
+                notes=f"Regenerated payslip for {payslip.employee.fullname}",
+                previous_status=period.status,
+                new_status=period.status
+            )
+
+            return Response({
+                'message': 'Payslip regenerated successfully',
+                'payslip': PayslipSerializer(payslip).data
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='set-adjustment')
+    def set_adjustment(self, request, pk=None):
+        """Set a carryover adjustment on the employee (applied next payroll as offset).
+        Positive = future deduction, Negative = future credit.
+        """
+        payslip = self.get_object()
+        user = request.user
+        is_payroll_officer = (
+            user.is_superuser
+            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__icontains='PAYROLL').exists()
+            or user.groups.filter(name__iexact='HR Manager').exists()
+            or user.groups.filter(name__icontains='HR').exists()
+        )
+        if not is_payroll_officer:
+            return Response({'error': 'Only Payroll or HR can set adjustments'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            adj_val = Decimal(str(request.data.get('adjustment', 0) or 0)).quantize(Decimal('0.01'))
+        except Exception:
+            return Response({'error': 'Invalid adjustment value'}, status=status.HTTP_400_BAD_REQUEST)
+
+        payslip.employee.offset = adj_val
+        payslip.employee.save(update_fields=['offset'])
+
+        return Response({'message': 'Adjustment set for next payroll', 'adjustment': float(adj_val)})
 
 
 class MyPayslipsView(APIView):

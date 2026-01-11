@@ -52,6 +52,7 @@ def send_message(sid, data):
         receiver_id = data.get('receiverId')
         content = data.get('content', '')
         msg_type = data.get('type', 'text')
+        reply_to_id = data.get('replyTo')
         
         sender = User.objects.get(id=sender_id)
         receiver = User.objects.get(id=receiver_id)
@@ -65,13 +66,20 @@ def send_message(sid, data):
             conversation.participants.add(sender, receiver)
             
         # Create Message
-        message = Message.objects.create(
+        message = Message(
             conversation=conversation,
             sender=sender,
             content=content,
             message_type=msg_type,
             is_read=False
         )
+        if reply_to_id:
+            try:
+                rt = Message.objects.get(id=reply_to_id, conversation=conversation)
+                message.reply_to = rt
+            except Message.DoesNotExist:
+                pass
+        message.save()
         
         # Manually fix attachment URL if needed
         payload = MessageSerializer(message).data
@@ -81,6 +89,7 @@ def send_message(sid, data):
                pass
 
         # Emit to both
+        print(f"[socket] send_message: sender={sender_id} receiver={receiver_id} msg_type={msg_type} id={payload.get('id')} attachment={payload.get('attachment')} attachment_url={payload.get('attachment_url')}")
         sio.emit('receive_message', payload, room=f"user_{receiver_id}")
         sio.emit('receive_message', payload, room=f"user_{sender_id}")
         
@@ -95,6 +104,7 @@ def typing(sid, data):
         receiver_id = data.get('receiverId')
         
         if sender_id and receiver_id:
+            print(f"[socket] typing: from={sender_id} to={receiver_id} isTyping={data.get('isTyping')} convo={data.get('conversationId')}")
             sio.emit('display_typing', {
                 'senderId': sender_id,
                 'isTyping': data.get('isTyping', False)

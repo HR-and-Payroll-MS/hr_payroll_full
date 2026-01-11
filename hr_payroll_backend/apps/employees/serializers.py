@@ -96,12 +96,34 @@ class EmployeeJobSerializer(serializers.Serializer):
         return obj.department.name if obj.department else None
     
     def get_linemanager(self, obj):
+        data = {
+            "name": None,
+            "photo": None,
+            "id": None
+        }
+        
+        request = self.context.get('request')
+        
         if obj.line_manager:
-            return obj.line_manager.fullname
+            data["name"] = obj.line_manager.fullname
+            data["id"] = obj.line_manager.id
+            if obj.line_manager.photo:
+                if request:
+                    data["photo"] = request.build_absolute_uri(obj.line_manager.photo.url)
+                else:
+                    data["photo"] = obj.line_manager.photo.url
+            return data
         
         # If no line manager, check if they are the department manager themselves
         if obj.department and obj.department.manager == obj:
-            return f"{obj.fullname} (Self)"
+            data["name"] = f"{obj.fullname} (Self)"
+            data["id"] = obj.id
+            if obj.photo:
+                 if request:
+                     data["photo"] = request.build_absolute_uri(obj.photo.url)
+                 else:
+                     data["photo"] = obj.photo.url
+            return data
             
         return None
 
@@ -139,7 +161,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         return EmployeeGeneralSerializer(obj).data
     
     def get_job(self, obj):
-        return EmployeeJobSerializer(obj).data
+        return EmployeeJobSerializer(obj, context=self.context).data
     
     def get_payroll(self, obj):
         return EmployeePayrollSerializer(obj).data
@@ -163,7 +185,7 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         return EmployeeGeneralSerializer(obj).data
     
     def get_job(self, obj):
-        return EmployeeJobSerializer(obj).data
+        return EmployeeJobSerializer(obj, context=self.context).data
     
     def get_payroll(self, obj):
         return EmployeePayrollSerializer(obj).data

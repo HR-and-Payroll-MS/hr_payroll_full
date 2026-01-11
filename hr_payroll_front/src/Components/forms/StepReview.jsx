@@ -69,7 +69,7 @@ const StepReview = ({ data }) => {
       <Section title="Job Information" icon={<Briefcase size={16}/>}>
         {renderItem("Employee ID", job.employeeid)}
         {renderItem("Job Title", job.jobtitle)}
-        {renderItem("Line Manager", job.linemanager)}
+        {renderItem("Line Manager", job.linemanager?.name || job.linemanager)}
         {renderItem("Position Type", job.positiontype)}
         {renderItem("Employment Type", job.employmenttype)}
         {renderItem("Join Date", job.joindate)}

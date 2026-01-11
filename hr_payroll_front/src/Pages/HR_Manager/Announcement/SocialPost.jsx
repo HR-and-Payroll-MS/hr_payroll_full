@@ -42,7 +42,7 @@ export default function SocialPost({ announcement, isDetailView = false, onEdit 
   };
 
   return (
-    <div className={`bg-white dark:bg-slate-900 overflow-hidden relative ${isDetailView ? '' : 'rounded shadow border border-slate-100 mb-3'}`}>
+    <div className={`bg-white dark:bg-slate-900 overflow-hidden relative ${isDetailView ? '' : 'rounded shadow  dark:shadow-slate-900 dark:shadow-md dark:inset-shadow-xs dark:inset-shadow-slate-600 mb-3'}`}>
       
       {isHR && !isDetailView && (
         <div className="absolute top-4 right-4 flex gap-1 z-10">

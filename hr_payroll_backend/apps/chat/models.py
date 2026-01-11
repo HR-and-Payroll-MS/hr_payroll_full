@@ -47,6 +47,7 @@ class Message(models.Model):
     content = models.TextField(blank=True)
     attachment = models.FileField(upload_to='chat_attachments/', null=True, blank=True)
     message_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='text')
+    reply_to = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='replies')
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

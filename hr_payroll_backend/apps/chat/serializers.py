@@ -52,13 +52,14 @@ class ChatUserSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.SerializerMethodField()
     attachment_url = serializers.SerializerMethodField()
+    reply_preview = serializers.SerializerMethodField()
     
     class Meta:
         model = Message
         fields = [
             'id', 'conversation', 'sender', 'sender_name', 
             'content', 'attachment', 'attachment_url',
-            'message_type', 'is_read', 'created_at'
+            'message_type', 'reply_to', 'reply_preview', 'is_read', 'created_at'
         ]
         read_only_fields = ['id', 'created_at', 'sender', 'conversation']
 
@@ -74,6 +75,25 @@ class MessageSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(url)
             return url
+        return None
+
+    def get_reply_preview(self, obj):
+        if obj.reply_to:
+            rp = obj.reply_to
+            kind = rp.message_type
+            text = rp.content or ''
+            # Prefer attachment URL to identify media reply
+            media = rp.attachment.url if rp.attachment else None
+            request = self.context.get('request')
+            if request and media:
+                media = request.build_absolute_uri(media)
+            return {
+                'id': rp.id,
+                'type': kind,
+                'text': text,
+                'mediaUrl': media,
+                'sender': rp.sender_id,
+            }
         return None
 
 class ConversationSerializer(serializers.ModelSerializer):
