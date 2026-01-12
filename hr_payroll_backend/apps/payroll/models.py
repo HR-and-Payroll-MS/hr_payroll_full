@@ -238,6 +238,7 @@ class Allowance(models.Model):
     applies_to = models.JSONField(default=list)  # ["all"] or ["Engineering", "HR"] or ["Manager"]
     
     tax_code = models.ForeignKey(TaxCode, on_delete=models.SET_NULL, null=True, blank=True, related_name='allowances')
+    tax_code_version = models.ForeignKey(TaxCodeVersion, on_delete=models.CASCADE, null=True, blank=True, related_name='allowances')
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

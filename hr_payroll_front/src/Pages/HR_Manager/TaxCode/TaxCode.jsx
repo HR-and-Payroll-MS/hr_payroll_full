@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus,
   Trash2,
@@ -37,6 +37,58 @@ function TaxCode() {
   const openModal = () => setModalOpen(true);
   const [allTaxCodes, setAllTaxCodes] = useState([]);
 
+  const mapAllowances = (allowances) =>
+    (allowances || []).map((a) => ({
+      id: a.id,
+      code: a.code,
+      name: a.name,
+      calculation_type: a.calculation_type,
+      default_value: parseFloat(a.default_value ?? 0),
+      percentage_value: a.percentage_value ?? 0,
+      is_taxable: a.is_taxable,
+      applies_to: a.applies_to || ['all'],
+      is_active: a.is_active,
+    }));
+
+  const transformTaxCodeDetail = (tc) => {
+    const allowances = mapAllowances(tc.allowances);
+    return {
+      id: tc.code,
+      backendId: tc.id,
+      name: tc.name,
+      isEnabled: tc.is_active,
+      allowances,
+      versions:
+        tc.versions?.map((v) => ({
+          id: v.id,
+          version: v.version,
+          validFrom: v.valid_from,
+          validTo: v.valid_to,
+          status: { active: v.is_active, locked: v.is_locked },
+          incomeTax: {
+            ...(v.income_tax_config || { type: 'progressive' }),
+            brackets:
+              v.tax_brackets?.map((b) => ({
+                min: parseFloat(b.min_income),
+                max: b.max_income ? parseFloat(b.max_income) : '',
+                rate: parseFloat(b.rate),
+              })) ||
+              v.income_tax_config?.brackets ||
+              [],
+          },
+          pension: v.pension_config || {
+            employeePercent: 7,
+            employerPercent: 11,
+          },
+          statutoryDeductions: v.statutory_deductions_config || [],
+          exemptions: v.exemptions_config || [],
+          rounding: v.rounding_rules || { method: 'nearest', precision: 2 },
+          compliance: v.compliance_notes || [],
+          allowances: mapAllowances(v.allowances || v.allowances_data || []),
+        })) || [],
+    };
+  };
+
   // Fetch tax codes from backend on mount
   useEffect(() => {
     const fetchTaxCodes = async () => {
@@ -51,40 +103,8 @@ function TaxCode() {
           console.error('Unexpected API format:', response.data);
           throw new Error('API return format invalid');
         }
-        const transformed = taxCodeData.map((tc) => ({
-          id: tc.code,
-          backendId: tc.id, // Keep backend ID for API calls
-          name: tc.name,
-          isEnabled: tc.is_active,
-          versions:
-            tc.versions?.map((v) => ({
-              id: v.id,
-              version: v.version,
-              validFrom: v.valid_from,
-              validTo: v.valid_to,
-              status: { active: v.is_active, locked: v.is_locked },
-              incomeTax: {
-                ...(v.income_tax_config || { type: 'progressive' }),
-                // IMPORTANT: Map API relation 'tax_brackets' to frontend 'brackets'
-                brackets:
-                  v.tax_brackets?.map((b) => ({
-                    min: parseFloat(b.min_income),
-                    max: b.max_income ? parseFloat(b.max_income) : '',
-                    rate: parseFloat(b.rate),
-                  })) ||
-                  v.income_tax_config?.brackets ||
-                  [],
-              },
-              pension: v.pension_config || {
-                employeePercent: 7,
-                employerPercent: 11,
-              },
-              statutoryDeductions: v.statutory_deductions_config || [],
-              exemptions: v.exemptions_config || [],
-              rounding: v.rounding_rules || { method: 'nearest', precision: 2 },
-              compliance: v.compliance_notes || [],
-            })) || [],
-        }));
+
+        const transformed = taxCodeData.map(transformTaxCodeDetail);
 
         setAllTaxCodes(transformed);
         setError(null);
@@ -103,6 +123,23 @@ function TaxCode() {
 
     fetchTaxCodes();
   }, [axiosPrivate]);
+
+  // Fetch a single tax code with allowances when selected
+  const fetchTaxCodeDetail = useCallback(
+    async (backendId, codeIdForState) => {
+      if (!backendId) return;
+      try {
+        const res = await axiosPrivate.get(`/payroll/tax-codes/${backendId}/`);
+        const transformed = transformTaxCodeDetail(res.data);
+        setAllTaxCodes((prev) =>
+          prev.map((c) => (c.id === codeIdForState ? transformed : c))
+        );
+      } catch (err) {
+        console.error('Failed to fetch tax code detail:', err);
+      }
+    },
+    [axiosPrivate]
+  );
 
   // Toggle tax code active status via API
   const handleToggleTaxCode = async (codeId, backendId) => {
@@ -182,10 +219,8 @@ function TaxCode() {
       for (let i = 0; i < keys.length - 1; i++) {
         current = current[keys[i]];
       }
-      current[keys[keys.length - 1]] = [
-        ...current[keys[keys.length - 1]],
-        template,
-      ];
+      const arr = current[keys[keys.length - 1]] || [];
+      current[keys[keys.length - 1]] = [...arr, template];
       return { ...newData };
     });
   }; //add
@@ -229,64 +264,60 @@ function TaxCode() {
             .slice(-4)}`,
         name: taxData.name,
         is_active: true,
-        // Version data
         version: taxData.version,
         valid_from: taxData.validFrom,
         valid_to: taxData.validTo || null,
-        income_tax_config: taxData.incomeTax,
+        income_tax_config: {
+          ...taxData.incomeTax,
+          brackets:
+            taxData.incomeTax.brackets?.map((b) => ({
+              min_income: b.min,
+              max_income: b.max === '' ? null : b.max,
+              rate: b.rate,
+            })) || [],
+        },
         pension_config: taxData.pension,
         rounding_rules: taxData.rounding,
         compliance_notes: taxData.compliance,
         statutory_deductions_config: taxData.statutoryDeductions,
         exemptions_config: taxData.exemptions,
-        // Brackets relation (backend expects flat list of brackets for the version)
         tax_brackets:
           taxData.incomeTax.brackets?.map((b) => ({
             min_income: b.min,
-            max_income: b.max || null,
+            max_income: b.max === '' ? null : b.max,
             rate: b.rate,
           })) || [],
       };
 
       let response;
+      let versionResponse;
       if (selectedCodeId) {
-        // ADD VERSION TO EXISTING CODE
-        // The backend endpoint likely expects a direct POST to taxes or a specific action.
-        // Assuming standard REST: create version linked to tax code.
-        // Or if 'selectedCodeId' (e.g. 'ETH_FED') is just the code, we need the PK.
         const taxCodeObj = allTaxCodes.find((c) => c.id === selectedCodeId);
         if (!taxCodeObj) throw new Error('Tax Code not found');
 
         const versionPayload = {
-          tax_code_id: taxCodeObj.backendId,
           ...payload,
+          tax_code: taxCodeObj.backendId,
         };
-        // We'll use the specific endpoint for creating a version if available, or generic list create if it supports it.
-        // Best bet: use the dedicated endpoint /payroll/tax-codes/{id}/add_version/ if it exists, or POST to /payroll/tax-versions/
-        // Let's assume the ViewSet handles a custom action or we post to a versions endpoint.
-        // Based on previous files, we saw TaxCodeViewSet but checking if there's a version endpoint.
-        // If not, we might need to rely on the backend creating it.
-        // Let's assume we post to /payroll/tax-codes/{id}/add_version/ based on typical patterns or create a version directly.
-        // Actually, let's look at urls/views. Checking... assuming /payroll/tax-codes/{id}/add_version/ for now or will fix if error.
-        response = await axiosPrivate.post(
-          `/payroll/tax-codes/${taxCodeObj.backendId}/add-version/`,
-          payload
+        versionResponse = await axiosPrivate.post(
+          '/payroll/tax-code-versions/',
+          versionPayload
         );
       } else {
-        // NEW TAX CODE
         response = await axiosPrivate.post('/payroll/tax-codes/', payload);
 
-        // Fix: If backend doesn't handle nested version creation, we must create it explicitly
         if (response.data && response.data.id) {
           const newId = response.data.id;
+          const versionPayload = {
+            ...payload,
+            tax_code: newId,
+          };
           try {
-            // Use the same payload which contains version data
-            await axiosPrivate.post(
-              `/payroll/tax-codes/${newId}/add-version/`,
-              payload
+            versionResponse = await axiosPrivate.post(
+              '/payroll/tax-code-versions/',
+              versionPayload
             );
             console.log('Initial version created for new tax code');
-            // Assuming showAlert is available in context or passed down, but here we can just log or rely on main success
           } catch (verErr) {
             console.error('Failed to create initial version:', verErr);
             alert(
@@ -296,45 +327,64 @@ function TaxCode() {
         }
       }
 
-      console.log('Saved Tax Config:', response.data);
-      // Refresh list
-      const fetchResponse = await axiosPrivate.get('/payroll/tax-codes/');
+      // Create allowances tied to this tax code version (scoped per-version)
+      const taxCodeIdForAllowances = selectedCodeId
+        ? allTaxCodes.find((c) => c.id === selectedCodeId)?.backendId
+        : response?.data?.id;
+      const versionIdForAllowances = versionResponse?.data?.id;
 
-      // Re-transform logic (duplicated from fetchTaxCodes - ideally refactor this)
-      const taxCodeData = fetchResponse.data.results || fetchResponse.data;
-      const transformed = taxCodeData.map((tc) => ({
-        id: tc.code,
-        backendId: tc.id,
-        name: tc.name,
-        isEnabled: tc.is_active,
-        versions:
-          tc.versions?.map((v) => ({
-            id: v.id, // Keep version ID
-            version: v.version,
-            validFrom: v.valid_from,
-            validTo: v.valid_to,
-            status: { active: v.is_active, locked: v.is_locked },
-            incomeTax: {
-              ...(v.income_tax_config || { type: 'progressive' }),
-              brackets:
-                v.tax_brackets?.map((b) => ({
-                  min: parseFloat(b.min_income),
-                  max: b.max_income ? parseFloat(b.max_income) : '',
-                  rate: parseFloat(b.rate),
-                })) ||
-                v.income_tax_config?.brackets ||
-                [],
-            },
-            pension: v.pension_config || {
-              employeePercent: 7,
-              employerPercent: 11,
-            },
-            statutoryDeductions: v.statutory_deductions_config || [],
-            exemptions: v.exemptions_config || [],
-            rounding: v.rounding_rules || { method: 'nearest', precision: 2 },
-            compliance: v.compliance_notes || [],
-          })) || [],
-      }));
+      if (
+        taxCodeIdForAllowances &&
+        versionIdForAllowances &&
+        Array.isArray(taxData.allowances)
+      ) {
+        const failedAllowances = [];
+        for (const al of taxData.allowances) {
+          if (!al.name) continue;
+          const baseCode =
+            al.code ||
+            `${al.name}`.toUpperCase().replace(/\s+/g, '_').slice(0, 20);
+          // Ensure globally-unique allowance code to avoid 400 on duplicate codes
+          const code = `${baseCode}_${versionIdForAllowances}`.slice(0, 45);
+          const body = {
+            code,
+            name: al.name,
+            calculation_type: al.calculation_type || 'fixed',
+            default_value: Number(al.default_value || 0),
+            percentage_value:
+              al.calculation_type === 'percentage'
+                ? Number(al.percentage_value || 0)
+                : null,
+            is_taxable: al.is_taxable !== false,
+            is_active: true,
+            applies_to:
+              al.applies_to && al.applies_to.length ? al.applies_to : ['all'],
+            tax_code: taxCodeIdForAllowances,
+            tax_code_version: versionIdForAllowances,
+          };
+          try {
+            await axiosPrivate.post('/payroll/allowances/', body);
+          } catch (e) {
+            const detail = e.response?.data || e.message;
+            console.warn('Failed to create allowance', al.name, detail);
+            failedAllowances.push(
+              `${al.name || code}: ${JSON.stringify(detail)}`
+            );
+          }
+        }
+        if (failedAllowances.length > 0) {
+          throw new Error(
+            `Failed to save allowances: ${failedAllowances.join(', ')}`
+          );
+        }
+      }
+
+      const refreshed = await axiosPrivate.get('/payroll/tax-codes/');
+      const taxCodeData = refreshed.data.results || refreshed.data;
+      const transformed = Array.isArray(taxCodeData)
+        ? taxCodeData.map(transformTaxCodeDetail)
+        : [];
+
       setAllTaxCodes(transformed);
       closeEditor();
     } catch (error) {
@@ -489,14 +539,21 @@ function TaxCode() {
                     <SectionHeader
                       title="Income Brackets"
                       onAdd={() => {
-                        const last =
-                          taxData.incomeTax.brackets[
-                            taxData.incomeTax.brackets.length - 1
-                          ];
-                        addItem('incomeTax.brackets', {
-                          min: last?.max ? parseInt(last.max) + 1 : 0,
-                          max: '',
-                          rate: 0,
+                        setTaxData((prev) => {
+                          const brackets = prev.incomeTax.brackets || [];
+                          const last = brackets[brackets.length - 1];
+                          const nextMin =
+                            typeof last?.max === 'number'
+                              ? Number(last.max) + 1
+                              : 0;
+                          const next = { min: nextMin, max: '', rate: 0 };
+                          return {
+                            ...prev,
+                            incomeTax: {
+                              ...prev.incomeTax,
+                              brackets: [...brackets, next],
+                            },
+                          };
                         });
                       }}
                     />
@@ -515,7 +572,16 @@ function TaxCode() {
                               value={bracket.min || ''}
                               className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 p-2 rounded text-sm font-bold"
                               onChange={(e) => {
-                                /* update logic */
+                                const val =
+                                  e.target.value === ''
+                                    ? ''
+                                    : Number(e.target.value);
+                                updateItem(
+                                  'incomeTax.brackets',
+                                  index,
+                                  'min',
+                                  val
+                                );
                               }}
                             />
                           </div>
@@ -528,7 +594,16 @@ function TaxCode() {
                               value={bracket.max || ''}
                               className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 p-2 rounded text-sm font-bold"
                               onChange={(e) => {
-                                /* update logic */
+                                const val =
+                                  e.target.value === ''
+                                    ? ''
+                                    : Number(e.target.value);
+                                updateItem(
+                                  'incomeTax.brackets',
+                                  index,
+                                  'max',
+                                  val
+                                );
                               }}
                             />
                           </div>
@@ -541,7 +616,16 @@ function TaxCode() {
                               value={bracket.rate}
                               className="w-full bg-white dark:bg-slate-800 border-2 border-blue-100 dark:border-blue-900 p-2 rounded text-sm font-black text-blue-600 dark:text-blue-400"
                               onChange={(e) => {
-                                /* update logic */
+                                const val =
+                                  e.target.value === ''
+                                    ? 0
+                                    : Number(e.target.value);
+                                updateItem(
+                                  'incomeTax.brackets',
+                                  index,
+                                  'rate',
+                                  val
+                                );
                               }}
                             />
                           </div>
@@ -684,6 +768,110 @@ function TaxCode() {
                         />
                         <button
                           onClick={() => removeItem('statutoryDeductions', idx)}
+                          className="text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ALLOWANCES */}
+              <div className="space-y-4">
+                <SectionHeader
+                  title="Allowances"
+                  onAdd={() =>
+                    addItem('allowances', {
+                      name: '',
+                      calculation_type: 'fixed',
+                      default_value: 0,
+                      percentage_value: 0,
+                      is_taxable: true,
+                      applies_to: ['all'],
+                    })
+                  }
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {taxData.allowances?.map((al, idx) => (
+                    <div
+                      key={idx}
+                      className="flex flex-col gap-3 bg-white dark:bg-slate-900/60 p-4 rounded-lg border border-slate-100 dark:border-slate-700 shadow-sm"
+                    >
+                      <input
+                        placeholder="Allowance Name"
+                        value={al.name}
+                        className="bg-transparent border-b border-slate-200 dark:border-slate-700 text-sm py-1 outline-none focus:border-emerald-500 dark:text-white"
+                        onChange={(e) =>
+                          updateItem('allowances', idx, 'name', e.target.value)
+                        }
+                      />
+                      <div className="flex items-center gap-3">
+                        <select
+                          value={al.calculation_type}
+                          onChange={(e) =>
+                            updateItem(
+                              'allowances',
+                              idx,
+                              'calculation_type',
+                              e.target.value
+                            )
+                          }
+                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 p-2 rounded text-sm font-bold flex-1"
+                        >
+                          <option value="fixed">Fixed</option>
+                          <option value="percentage">Percentage</option>
+                        </select>
+                        {al.calculation_type === 'percentage' ? (
+                          <input
+                            type="number"
+                            placeholder="%"
+                            value={al.percentage_value || 0}
+                            className="w-24 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 p-1.5 rounded text-center text-sm font-bold"
+                            onChange={(e) =>
+                              updateItem(
+                                'allowances',
+                                idx,
+                                'percentage_value',
+                                parseFloat(e.target.value || '0')
+                              )
+                            }
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            placeholder="Amount"
+                            value={al.default_value || 0}
+                            className="w-32 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 p-1.5 rounded text-center text-sm font-bold"
+                            onChange={(e) =>
+                              updateItem(
+                                'allowances',
+                                idx,
+                                'default_value',
+                                parseFloat(e.target.value || '0')
+                              )
+                            }
+                          />
+                        )}
+                        <label className="flex items-center gap-2 text-[10px] font-black text-slate-500 cursor-pointer uppercase">
+                          <input
+                            type="checkbox"
+                            className="accent-blue-500"
+                            checked={al.is_taxable !== false}
+                            onChange={(e) =>
+                              updateItem(
+                                'allowances',
+                                idx,
+                                'is_taxable',
+                                e.target.checked
+                              )
+                            }
+                          />
+                          Taxable
+                        </label>
+                        <button
+                          onClick={() => removeItem('allowances', idx)}
                           className="text-slate-300 hover:text-red-500 transition-colors"
                         >
                           <Trash2 size={16} />
@@ -921,6 +1109,7 @@ function TaxCode() {
                   compliance: [
                     { label: 'Authority', value: 'Ministry of Revenue' },
                   ],
+                  allowances: [],
                 });
                 setSelectedCodeId(null);
                 openModal();
@@ -933,67 +1122,78 @@ function TaxCode() {
         </div>
 
         {/* LIST SECTION - Styled as a cohesive card container */}
-        <div className="bg-white dark:bg-slate-700 rounded shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors flex-1 overflow-hidden flex flex-col">
+        <div className="bg-white dark:bg-slate-700 overflow-y-auto hover-bar rounded shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors flex-1 overflow-hidden flex flex-col">
           <div className="flex flex-col p-2 flex-1">
-            {allTaxCodes.map((code) => (
-              <div
-                key={code.id}
-                onClick={() => {
-                  setSelectedCodeId(code.id);
-                  setView('VERSION_LIST');
-                }}
-                className="group flex items-center gap-4 p-4 border-b border-gray-100 dark:border-slate-600/50 last:border-0 hover:bg-slate-100 dark:hover:bg-slate-600/30 transition-all cursor-pointer rounded-lg"
-              >
-                {/* ICON/STATUS INDICATOR */}
+            {loading ? (
+              <div className="p-6 text-center text-slate-500">
+                Loading tax codes…
+              </div>
+            ) : allTaxCodes.length === 0 ? (
+              <div className="p-6 text-center text-slate-500">
+                No tax codes available. Click "Add New Tax Code" to create one.
+              </div>
+            ) : (
+              allTaxCodes.map((code) => (
                 <div
-                  className={`p-2 rounded-lg ${
-                    code.isEnabled
-                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
-                  }`}
+                  key={code.id}
+                  onClick={() => {
+                    setSelectedCodeId(code.id);
+                    setView('VERSION_LIST');
+                    fetchTaxCodeDetail(code.backendId, code.id);
+                  }}
+                  className="group flex items-center gap-4 p-4 border-b border-gray-100 dark:border-slate-600/50 last:border-0 hover:bg-slate-100 dark:hover:bg-slate-600/30 transition-all cursor-pointer rounded-lg"
                 >
-                  <Icon name="FileText" size={20} />
-                </div>
-
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {code.name}
-                    </h2>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold uppercase">
-                      {code.versions.length} Versions
-                    </span>
-                  </div>
-                  <p className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">
-                    ID: {code.id}
-                  </p>
-                </div>
-
-                {/* TOGGLE SWITCH - Re-styled for the design system */}
-                <div className="flex flex-col items-center">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleTaxCode(code.id, code.backendId);
-                    }}
-                    className={`w-10 h-5 flex items-center rounded-full p-1 transition-all duration-300 ${
+                  {/* ICON/STATUS INDICATOR */}
+                  <div
+                    className={`p-2 rounded-lg ${
                       code.isEnabled
-                        ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-                        : 'bg-slate-300 dark:bg-slate-600'
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
                     }`}
                   >
-                    <div
-                      className={`bg-white w-3 h-3 rounded-full shadow-sm transform transition-transform duration-300 ${
-                        code.isEnabled ? 'translate-x-5' : 'translate-x-0'
+                    <Icon name="FileText" size={20} />
+                  </div>
+
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                        {code.name}
+                      </h2>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 font-bold uppercase">
+                        {code.versions.length} Versions
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter mt-0.5">
+                      ID: {code.id}
+                    </p>
+                  </div>
+
+                  {/* TOGGLE SWITCH - Re-styled for the design system */}
+                  <div className="flex flex-col items-center">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleTaxCode(code.id, code.backendId);
+                      }}
+                      className={`w-10 h-5 flex items-center rounded-full p-1 transition-all duration-300 ${
+                        code.isEnabled
+                          ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                          : 'bg-slate-300 dark:bg-slate-600'
                       }`}
-                    />
-                  </button>
-                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1">
-                    {code.isEnabled ? 'Active' : 'Disabled'}
-                  </span>
+                    >
+                      <div
+                        className={`bg-white w-3 h-3 rounded-full shadow-sm transform transition-transform duration-300 ${
+                          code.isEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-1">
+                      {code.isEnabled ? 'Active' : 'Disabled'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -1002,7 +1202,7 @@ function TaxCode() {
   if (view === 'VERSION_LIST') {
     const code = allTaxCodes.find((c) => c.id === selectedCodeId);
     return (
-      <div className="flex h-full w-full flex-col gap-4 scrollbar-hidden overflow-y-auto">
+      <div className="flex h-full w-full flex-col gap-4 ">
         {drawer}
 
         {/* SUB-HEADER / NAVIGATION SECTION */}
@@ -1042,11 +1242,15 @@ function TaxCode() {
                     rounding: { method: 'nearest', precision: 2 },
                     compliance: [],
                   };
+              const allowanceSet = mapAllowances(
+                baseData.allowances || code.allowances || []
+              );
               setTaxData({
                 ...baseData,
                 version: `v${code.versions.length + 1}`,
                 validFrom: '',
                 validTo: null,
+                allowances: allowanceSet,
               });
               openModal();
             }}
@@ -1057,7 +1261,7 @@ function TaxCode() {
         </div>
 
         {/* VERSIONS LIST */}
-        <div className="flex flex-col gap-3 px-1">
+        <div className="flex flex-col scrollbar-hidden overflow-y-auto gap-3 px-1">
           {code.versions.map((v, i) => (
             <div
               key={i}
@@ -1204,6 +1408,41 @@ function TaxCode() {
 
                   {/* COL 3: EXEMPTIONS & COMPLIANCE */}
                   <div className="space-y-6">
+                    <div>
+                      <p className="font-black text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-2">
+                        Allowances
+                      </p>
+                      <div className="space-y-2">
+                        {v.allowances?.length ? (
+                          v.allowances.map((al, ali) => (
+                            <div
+                              key={ali}
+                              className="bg-white dark:bg-slate-800 p-3 py-1.5 rounded border border-slate-200 dark:border-slate-600 text-[11px] shadow-sm flex justify-between gap-3"
+                            >
+                              <div>
+                                <p className="font-bold text-slate-700 dark:text-slate-200">
+                                  {al.name}
+                                </p>
+                                <p className="text-slate-400 dark:text-slate-500 mt-0.5 uppercase font-bold tracking-tighter">
+                                  {al.calculation_type === 'percentage'
+                                    ? `${al.percentage_value || 0}% of base`
+                                    : `${al.default_value || 0}`}
+                                </p>
+                              </div>
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                                {al.is_taxable === false
+                                  ? 'Non-Taxable'
+                                  : 'Taxable'}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[11px] text-slate-400">
+                            No allowances
+                          </p>
+                        )}
+                      </div>
+                    </div>
                     <div>
                       <p className="font-black text-[10px] text-slate-400 uppercase tracking-[0.2em] mb-2">
                         Exemptions

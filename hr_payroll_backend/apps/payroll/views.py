@@ -517,7 +517,7 @@ class TaxCodeViewSet(viewsets.ModelViewSet):
     - PUT /payroll/tax-codes/{id}/ - Update tax code
     - DELETE /payroll/tax-codes/{id}/ - Delete tax code
     """
-    queryset = TaxCode.objects.prefetch_related('versions', 'allowances', 'deductions').all()
+    queryset = TaxCode.objects.prefetch_related('versions', 'versions__allowances', 'allowances', 'deductions').all()
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -577,7 +577,7 @@ class AllowanceViewSet(viewsets.ModelViewSet):
     - PUT /payroll/allowances/{id}/ - Update allowance
     - DELETE /payroll/allowances/{id}/ - Delete allowance
     """
-    queryset = Allowance.objects.select_related('tax_code').all()
+    queryset = Allowance.objects.select_related('tax_code', 'tax_code_version').all()
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -595,6 +595,10 @@ class AllowanceViewSet(viewsets.ModelViewSet):
         tax_code = self.request.query_params.get('tax_code')
         if tax_code:
             queryset = queryset.filter(tax_code_id=tax_code)
+        # Filter by tax code version
+        version = self.request.query_params.get('tax_code_version') or self.request.query_params.get('version')
+        if version:
+            queryset = queryset.filter(tax_code_version_id=version)
         return queryset
 
 

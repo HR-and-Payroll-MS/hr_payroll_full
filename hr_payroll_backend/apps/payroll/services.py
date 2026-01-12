@@ -3,6 +3,8 @@ Payroll Calculation Service.
 Calculates payroll for all employees considering policies, tax codes, overtime, attendance, and leaves.
 """
 from decimal import Decimal
+import logging
+import json
 from datetime import date, datetime, timedelta
 from calendar import monthrange
 from django.db.models import Sum, Q
@@ -38,6 +40,9 @@ class PayrollCalculationService:
         self.month_num = self._get_month_number(period.month)
         self.year = period.year
         self.working_days = self._calculate_working_days()
+        # Initialize debug/logging before calling any helpers that may log
+        self.debug_trace = []
+        self.logger = logging.getLogger('payroll')
         
         # Load tax configuration
         self.tax_code = self._get_active_tax_code()
@@ -52,6 +57,31 @@ class PayrollCalculationService:
         
         # Load company info for payslip details
         self.company_info = self._get_company_info()
+
+        self._debug(
+            'bootstrap',
+            tax_code_id=getattr(self.tax_code, 'id', None),
+            tax_code_code=getattr(self.tax_code, 'code', None),
+            tax_version_id=getattr(self.tax_version, 'id', None),
+            tax_version=getattr(self.tax_version, 'version', None),
+            brackets=len(self.tax_brackets),
+        )
+
+    def _debug(self, label: str, **data):
+        """Collect debug breadcrumbs and emit structured console logs."""
+        if not hasattr(self, 'debug_trace'):
+            self.debug_trace = []
+        payload = {
+            'label': label,
+            'period': {'month': self.period.month, 'year': self.period.year},
+            **data,
+        }
+        self.debug_trace.append(payload)
+        try:
+            self.logger.info('PAYROLL_DEBUG ' + json.dumps(payload, default=str))
+        except Exception:
+            # Fallback to simple string
+            self.logger.info(f"PAYROLL_DEBUG {label} {payload}")
     
     def _get_month_number(self, month_name: str) -> int:
         """Convert month name to number."""
@@ -101,26 +131,37 @@ class PayrollCalculationService:
             try:
                 tv = TaxCodeVersion.objects.get(id=self.tax_code_version_id)
                 if tv.tax_code_id != self.tax_code.id:
+                    self._debug('tax_version_mismatch_code', requested=self.tax_code_version_id, tax_code_id=self.tax_code.id, tv_tax_code_id=tv.tax_code_id)
                     return None
                 if not tv.is_active:
+                    self._debug('tax_version_inactive', version_id=tv.id)
                     return None
                 period_date = date(self.year, self.month_num, 1)
                 if tv.valid_from and tv.valid_from > period_date:
+                    self._debug('tax_version_not_started', version_id=tv.id, valid_from=str(tv.valid_from), period=str(period_date))
                     return None
                 if tv.valid_to and tv.valid_to < period_date:
+                    self._debug('tax_version_expired', version_id=tv.id, valid_to=str(tv.valid_to), period=str(period_date))
                     return None
+                self._debug('tax_version_selected', version_id=tv.id, source='override')
                 return tv
             except TaxCodeVersion.DoesNotExist:
+                self._debug('tax_version_not_found', requested=self.tax_code_version_id)
                 return None
 
         period_date = date(self.year, self.month_num, 1)
-        return TaxCodeVersion.objects.filter(
+        tv = TaxCodeVersion.objects.filter(
             tax_code=self.tax_code,
             is_active=True,
             valid_from__lte=period_date
         ).filter(
             Q(valid_to__isnull=True) | Q(valid_to__gte=period_date)
         ).order_by('-valid_from').first()
+        if not tv:
+            self._debug('no_applicable_version', tax_code_id=self.tax_code.id, period=str(period_date))
+        else:
+            self._debug('tax_version_selected', version_id=tv.id, source='auto')
+        return tv
     
     def _get_tax_brackets(self):
         """Get tax brackets for the applicable version."""
@@ -220,11 +261,22 @@ class PayrollCalculationService:
     
     def _calculate_for_employee(self, employee: Employee) -> Payslip:
         """Calculate individual payslip with all components."""
-        
+        # Capture per-employee context (preserve init debug breadcrumbs)
+        self._debug(
+            'bootstrap',
+            employee=employee.id,
+            tax_code_id=getattr(self.tax_code, 'id', None),
+            tax_code_code=getattr(self.tax_code, 'code', None),
+            tax_version_id=getattr(self.tax_version, 'id', None),
+            tax_version=getattr(self.tax_version, 'version', None),
+            bracket_count=len(self.tax_brackets),
+        )
+
         issues = []
         # Pre-check: Missing tax version
         if not self.tax_version:
             issues.append('No active tax version for period; income tax set to 0.')
+            self._debug('tax_version_missing', employee=employee.id)
 
         # 1. Base salary from employee record
         full_base_salary = employee.salary or Decimal('0')
@@ -376,13 +428,39 @@ class PayrollCalculationService:
         taxable_income = gross_pay - self._get_pretax_deductions(deductions_data) - non_taxable_allowances_total
         
         exemptions_configs = getattr(self.tax_version, 'exemptions_config', [])
+        exemptions_applied = []
         for ec in exemptions_configs:
             limit = Decimal(str(ec.get('limit', 0)))
             if limit > 0:
+                applied = min(taxable_income, limit) if taxable_income > 0 else Decimal('0')
                 taxable_income = max(0, taxable_income - limit)
+                exemptions_applied.append({
+                    'name': ec.get('name') or 'Exemption',
+                    'applied': float(self._round(applied)),
+                    'limit': float(self._round(limit))
+                })
+
+        # Early reason markers
+        if len(self.tax_brackets) == 0:
+            self._debug('no_brackets', employee=employee.id)
+        if taxable_income <= 0:
+            self._debug('taxable_income_non_positive', employee=employee.id, taxable_income=float(self._round(taxable_income)))
 
         tax_amount = self._calculate_tax(taxable_income)
         tax_amount = self._round(tax_amount)
+
+        # Capture core tax inputs/outputs for debugging
+        self._debug(
+            'tax_calc',
+            employee=employee.id,
+            gross=float(self._round(gross_pay)),
+            pretax=float(self._round(self._get_pretax_deductions(deductions_data))),
+            non_taxable_allowances=float(self._round(non_taxable_allowances_total)),
+            taxable_income=float(self._round(taxable_income)),
+            tax=float(tax_amount),
+            bracket_count=len(self.tax_brackets),
+            mode=getattr(self.tax_version, 'income_tax_config', {}).get('type', 'progressive') if getattr(self.tax_version, 'income_tax_config', None) else ('progressive' if len(self.tax_brackets) > 0 else 'flat')
+        )
 
         # Anomaly: Tax exceeds 50% of taxable income
         try:
@@ -444,6 +522,11 @@ class PayrollCalculationService:
             'paymentMethod': 'Bank Transfer',
             'earnings': [{**e, 'amount': float(self._round(e['amount']))} for e in all_earnings],
             'deductions': [{**d, 'amount': float(self._round(d['amount']))} for d in all_deductions],
+            'taxSummary': {
+                'mode': getattr(self.tax_version, 'income_tax_config', {}).get('type', 'progressive') if getattr(self.tax_version, 'income_tax_config', None) else ('progressive' if len(self.tax_brackets) > 0 else 'flat'),
+                'nonTaxableAllowances': float(self._round(non_taxable_allowances_total)),
+                'exemptionsApplied': exemptions_applied,
+            },
             'attendance': {
                 'workedDays': attendance_data['worked_days'],
                 'absentDays': final_absent_days,
@@ -460,7 +543,8 @@ class PayrollCalculationService:
                 'employerPension': float(self._round(employer_pension_amount))
             },
             'warnings': issues,
-            'adjustmentApplied': float(self._round(offset_val)) if offset_val != 0 else 0.0
+            'adjustmentApplied': float(self._round(offset_val)) if offset_val != 0 else 0.0,
+            'debug': self.debug_trace,
         }
 
         # Consume offset once after applying as carryover
@@ -492,53 +576,67 @@ class PayrollCalculationService:
         )
     
     def _calculate_allowances(self, employee: Employee, base_salary: Decimal):
-        """Calculate all allowances for an employee."""
+        """Calculate all allowances for an employee using tax code version scoped allowances first."""
         allowances = []
-        
-        # Get employee-specific allowances
+
+        version_id = getattr(self.tax_version, 'id', None)
+        code_id = getattr(self.tax_code, 'id', None)
+
+        # Get employee-specific allowances (respect active flag)
         emp_allowances = EmployeeAllowance.objects.filter(
             employee=employee,
             is_active=True
         ).select_related('allowance')
-        
+
         for ea in emp_allowances:
             allowance = ea.allowance
             if not allowance.is_active:
                 continue
-            
+            # Strict scope: if a tax version is selected, only include allowances bound to that version
+            if version_id:
+                if allowance.tax_code_version_id != version_id:
+                    continue
+            else:
+                # No version specified: allow tax_code-scoped allowances, skip others
+                if code_id and allowance.tax_code_id and allowance.tax_code_id != code_id:
+                    continue
+
             value = ea.custom_value if ea.custom_value else allowance.default_value
-            
+
             if allowance.calculation_type == 'percentage' and allowance.percentage_value:
                 value = base_salary * (allowance.percentage_value / Decimal('100'))
-            
+
             allowances.append({
                 'label': allowance.name,
                 'amount': value.quantize(Decimal('0.01')),
                 'is_taxable': bool(getattr(allowance, 'is_taxable', True))
             })
-        
-        # Get department/role-based allowances
+
+        # Get department/role-based allowances scoped by version first
         dept = employee.department.name if employee.department else None
-        general_allowances = Allowance.objects.filter(is_active=True)
-        
-        for allowance in general_allowances:
+        scoped_allowances = Allowance.objects.filter(is_active=True)
+        if version_id:
+            scoped_allowances = scoped_allowances.filter(tax_code_version_id=version_id)
+        elif code_id:
+            scoped_allowances = scoped_allowances.filter(tax_code_id=code_id)
+
+        for allowance in scoped_allowances:
             # Skip if already in employee-specific
             if any(a['label'] == allowance.name for a in allowances):
                 continue
-            
-            # Check applicability
+
             applies_to = allowance.applies_to or []
             if 'all' in applies_to or (dept and dept in applies_to):
                 value = allowance.default_value
                 if allowance.calculation_type == 'percentage' and allowance.percentage_value:
                     value = base_salary * (allowance.percentage_value / Decimal('100'))
-                
+
                 allowances.append({
                     'label': allowance.name,
                     'amount': value.quantize(Decimal('0.01')),
                     'is_taxable': bool(getattr(allowance, 'is_taxable', True))
                 })
-        
+
         return allowances
     
     def _calculate_overtime(self, employee: Employee, base_salary: Decimal):
@@ -754,25 +852,41 @@ class PayrollCalculationService:
         return Decimal(str(sum(d['amount'] for d in deductions if d.get('is_pretax', False))))
     
     def _calculate_tax(self, taxable_income: Decimal) -> Decimal:
-        """Calculate income tax using progressive tax brackets."""
-        if not self.tax_brackets or taxable_income <= 0:
+        """Calculate income tax using flat or progressive rules based on version config."""
+        if taxable_income <= 0:
             return Decimal('0')
-        
+
+        cfg = getattr(self.tax_version, 'income_tax_config', {}) or {}
+        cfg_type = str(cfg.get('type', '')).lower()
+        # Prefer explicit flatRate for flat configs; fall back to legacy 'rate'
+        flat_rate = cfg.get('flatRate', cfg.get('rate', None))
+
+        # Flat mode explicitly requested or fallback if no brackets but a rate is provided
+        if cfg_type == 'flat' or (not self.tax_brackets and flat_rate is not None):
+            try:
+                rate = Decimal(str(flat_rate))
+            except Exception:
+                rate = Decimal('0')
+            if rate <= 0:
+                return Decimal('0')
+            return (taxable_income * (rate / Decimal('100'))).quantize(Decimal('0.01'))
+
+        # Progressive default using brackets
+        if not self.tax_brackets:
+            return Decimal('0')
+
         tax = Decimal('0')
-        
-        # Robust progressive calculation
+
         for bracket in self.tax_brackets:
             lower = bracket.min_income
             upper = bracket.max_income if bracket.max_income is not None else Decimal('Infinity')
-            
+
             if taxable_income > lower:
-                # Calculate portion of income in this bracket
                 taxable_in_this_bracket = min(taxable_income, upper) - lower
                 tax += taxable_in_this_bracket * (bracket.rate / Decimal('100'))
-        
-        # Safety cap: Tax should never exceed 50% of income (unless rates are crazy)
+
+        # Safety cap: Tax should never exceed 50% of income
         if tax > taxable_income * Decimal('0.5'):
-            # This is likely a configuration error in brackets, log it
             pass
 
         return tax.quantize(Decimal('0.01'))

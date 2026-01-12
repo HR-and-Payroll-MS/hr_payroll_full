@@ -1,31 +1,33 @@
-import PayslipTemplate from "../../../Components/PayslipTemplate";
-import calcPayrollForEmployee from "./calcPayrollForEmployee";
+import PayslipTemplate from '../../../Components/PayslipTemplate';
 
-// ViewerLoader: converts key back to payroll object and renders PayslipTemplate
-export default function ViewerLoader({ Id,demoEmployees,month= new Date().toISOString().split("T")[0] }) {
-  console.log("Employee ID:", Id);
-  console.log("Employee data:", demoEmployees);
-  console.log("Employee month:", month);
-  if (!Id) return null;
+// ViewerLoader: renders a payslip payload from backend
+export default function ViewerLoader({ payslip, month }) {
+  if (!payslip) return null;
 
-  // key format: EMP001_2025-12
-  // const [eid, monthFromKey] = keyId.split("_");
-
-  // find employee
-  // console.log("demoEmployees:", demoEmployees);
-  const emp = demoEmployees.find((e) => e.id === Id);
-  console.log("Employee found:", emp);
-
-  if (!emp) return <div className="text-sm text-red-500">Employee not found</div>;
-
-  // rebuild payroll using the existing calculator (pass month parsed from key)
-  const payroll = calcPayrollForEmployee(emp, month);
-  console.log("Payroll rebuilt in ViewerLoader:", payroll);
+  const payroll = {
+    employee: {
+      id: payslip.employee,
+      name: payslip.employee_name || payslip.employee_id_display,
+      department: payslip.department,
+      jobTitle: payslip.job_title,
+      bankAccount: payslip.bank_account,
+    },
+    month,
+    earnings: payslip.details?.earnings || [],
+    deductions: payslip.details?.deductions || [],
+    taxSummary: payslip.details?.taxSummary,
+    contributions: payslip.details?.contributions,
+    gross: Number(payslip.gross_pay || 0),
+    net: Number(payslip.net_pay || 0),
+    company: payslip.details?.company,
+    taxCode: payslip.tax_code_display,
+  };
 
   return (
     <div className="p-4 border dark:border-slate-400 dark:bg-slate-700 overflow-y-auto h-full rounded hover-bar bg-white">
-      <p className="text-2xl dark:text-slate-200 mb-7 font-bold">Preview for the Employee named {payroll?.employee?.name}</p>
-      {/* {console.log(payroll)} */}
+      <p className="text-2xl dark:text-slate-200 mb-7 font-bold">
+        Preview: {payroll?.employee?.name}
+      </p>
       <PayslipTemplate payroll={payroll} />
     </div>
   );
