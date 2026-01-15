@@ -52,7 +52,7 @@ import Icon from './Icon'
 // ............................       Working Pagination         ......................................
 export const Pagination=({ page, totalPages=1, onPageChange})=> {
   return (totalPages>1 &&
-    <div id="middle" className="flex  justify-between p-2 items-center ">
+    <div id="middle" className="flex  justify-between dark:bg-slate-800 p-2 items-center ">
                 
                 <div className="flex items-center  gap-1.5">
                     <button onClick={()=>onPageChange(page - 1)} disabled={page === 1} className={` dark:border-slate-700 py-1.5 dark:hover:bg-slate-600 hover:bg-slate-200 px-1 border-gray-100 shadow-2xl border h-full`}>

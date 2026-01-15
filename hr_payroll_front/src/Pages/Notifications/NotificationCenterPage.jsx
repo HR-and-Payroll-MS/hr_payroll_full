@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import useAuth from "../../Context/AuthContext";
 import NotificationCard from "./NotificationCard";
 import { ROLE_RECEIVE_TYPES } from "./utils";
 import InputField from "../../Components/InputField";
@@ -8,6 +10,9 @@ import { useNotifications } from "../../Context/NotificationProvider";
 import Icon from "../../Components/Icon";
 
 export default function NotificationCenterPage({ role = "EMPLOYEE" }) {
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const currentRole = auth?.user?.role || role || "EMPLOYEE";
   const { items, sentItems, markRead, remove, selected, setSelected, fetchSent } = useNotifications();
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
@@ -53,6 +58,48 @@ export default function NotificationCenterPage({ role = "EMPLOYEE" }) {
 
   const types = [{ content: "all" }, { content: "system" }, { content: "attendance" }, { content: "payroll" }];
 
+  const normalizeLink = (link, n) => {
+    if (!link || typeof link !== "string") return null;
+    let path = link.trim();
+    // Strip query/hash
+    path = path.split("?")[0].split("#")[0];
+    // Remove trailing numeric/hex-like ID segments to avoid 404
+    path = path.replace(/\/+$/, "");
+    const segs = path.split("/").filter(Boolean);
+    if (segs.length > 0) {
+      const last = segs[segs.length - 1];
+      if (/^\d+$/.test(last) || /^[0-9a-fA-F]{8,}$/.test(last)) {
+        segs.pop();
+        path = "/" + segs.join("/");
+      }
+    }
+    // Normalize known base segments to match Router paths
+    path = path.replace(/^\/employee\b/i, "/Employee");
+    path = path.replace(/^\/payroll\b/i, "/Payroll");
+    // Keep /hr_dashboard and /department_manager as-is
+
+    const cat = (n?.category || n?.notification_type || "").toLowerCase();
+    if (cat.includes("tax")) return null; // force detail view for tax code notifications
+
+    // Handle backend leaf links like /leaves/:id
+    if (/^\/leaves(\/|$)/i.test(path)) {
+      const roleNorm = (currentRole || "").toLowerCase();
+      if (roleNorm.includes("employee")) return "/Employee/Request";
+      if (roleNorm.includes("line manager")) return "/department_manager/Approve_Reject";
+      if (roleNorm.includes("manager") || roleNorm.includes("hr")) return "/hr_dashboard/Approve_Reject";
+      return "/Employee/Request";
+    }
+
+    // Category-based fallback when path still unknown
+    if (!/^\//.test(path) || path === "/") {
+      if (cat.includes("attendance")) return "/Employee/myovertime";
+      if (cat.includes("leave")) return "/Employee/Request";
+      if (cat.includes("payroll")) return "/Employee/my-payslips";
+    }
+
+    return path;
+  };
+
   if (selected) {
     return (
       <DetailNotification
@@ -97,23 +144,23 @@ export default function NotificationCenterPage({ role = "EMPLOYEE" }) {
         <button
           onClick={() => setTab("received")}
           className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${
-            tab === "received" ? "text-blue-600" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            tab === "received" ? "text-green-600" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
           }`}
         >
           Inbox
           {tab === "received" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-in fade-in duration-300" />
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-600 rounded-full animate-in fade-in duration-300" />
           )}
         </button>
         <button
           onClick={() => setTab("sent")}
           className={`pb-3 text-xs font-black uppercase tracking-widest transition-all relative ${
-            tab === "sent" ? "text-blue-600" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            tab === "sent" ? "text-green-600" : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
           }`}
         >
           Sent
           {tab === "sent" && (
-            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full animate-in fade-in duration-300" />
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-600 rounded-full animate-in fade-in duration-300" />
           )}
         </button>
       </div>
@@ -128,8 +175,14 @@ export default function NotificationCenterPage({ role = "EMPLOYEE" }) {
                   key={n.id}
                   n={{...n, sender_view: tab === 'sent'}}
                   onView={() => {
+                    const rawLink = n.related_link || n.link;
+                    const target = normalizeLink(rawLink, n);
                     if (tab === 'received') markRead(n.id);
-                    setSelected({ ...n, unread: tab === 'received' ? false : n.unread });
+                    if (target) {
+                      navigate(target);
+                    } else {
+                      setSelected({ ...n, unread: tab === 'received' ? false : n.unread });
+                    }
                   }}
                   onDelete={() => remove(n.id)}
                   onMarkRead={() => tab === 'received' && markRead(n.id)}

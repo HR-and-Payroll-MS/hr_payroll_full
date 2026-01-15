@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, Download, DollarSign, Calendar, Building2, AlertCircle } from 'lucide-react';
 import useAuth from '../../Context/AuthContext';
 import Header from '../../Components/Header';
+import MyPayslipList from '../MyPayslipList';
 
 const formatMoney = (amount) => 
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
@@ -18,10 +19,20 @@ function MyPayslipsPage() {
     setError(null);
     try {
       const res = await axiosPrivate.get('/payroll/my-payslips/');
-      setPayslips(res.data.results || []);
+      const results = res.data.results || res.data || [];
+      const mapped = results.map((p) => ({
+        id: p.id,
+        month: p.details?.month || `${p.period?.month || ''} ${p.period?.year || ''}`,
+        net: p.net_pay || p.net || 0,
+        gross: p.gross_pay || p.gross || 0,
+        deductions: (p.total_deductions || 0) + (p.tax_amount || 0),
+        raw: p,
+      }));
+      setPayslips(mapped);
     } catch (err) {
       console.error('Error fetching payslips:', err);
       setError('Failed to load your payslips');
+      setPayslips([]);
     } finally {
       setLoading(false);
     }
@@ -31,52 +42,9 @@ function MyPayslipsPage() {
     fetchMyPayslips();
   }, [fetchMyPayslips]);
 
-  const PayslipCard = ({ payslip }) => {
-    const details = payslip.details || {};
-    const periodStr = details.month || `${payslip.period?.month || ''} ${payslip.period?.year || ''}`;
-    
-    return (
-      <div 
-        onClick={() => setSelectedPayslip(payslip)}
-        className="bg-white dark:bg-slate-800 rounded-lg shadow border border-slate-200 dark:border-slate-700 p-4 cursor-pointer hover:shadow-md transition-shadow"
-      >
-        <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-              <FileText size={24} className="text-indigo-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-slate-800 dark:text-slate-200">{periodStr}</h3>
-              <p className="text-xs text-slate-500">Payment: {details.paymentDate || 'N/A'}</p>
-            </div>
-          </div>
-          {payslip.has_issues && (
-            <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full flex items-center gap-1">
-              <AlertCircle size={12} /> Issue
-            </span>
-          )}
-        </div>
-        
-        <div className="grid grid-cols-3 gap-4 text-center pt-3 border-t border-slate-100 dark:border-slate-700">
-          <div>
-            <p className="text-xs text-slate-500 uppercase">Gross</p>
-            <p className="font-semibold text-slate-700 dark:text-slate-300">{formatMoney(payslip.gross_pay)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase">Deductions</p>
-            <p className="font-semibold text-red-600">{formatMoney(parseFloat(payslip.total_deductions) + parseFloat(payslip.tax_amount))}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase">Net Pay</p>
-            <p className="font-bold text-emerald-600">{formatMoney(payslip.net_pay)}</p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const PayslipDetail = ({ payslip, onClose }) => {
-    const details = payslip.details || {};
+    const base = payslip.raw || payslip;
+    const details = base.details || {};
     const company = details.company || {};
     const earnings = details.earnings || [];
     const deductions = details.deductions || [];
@@ -108,19 +76,19 @@ function MyPayslipsPage() {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-slate-500">Employee</p>
-                <p className="font-medium text-slate-800 dark:text-slate-200">{payslip.employee_name}</p>
+                <p className="font-medium text-slate-800 dark:text-slate-200">{base.employee_name}</p>
               </div>
               <div>
                 <p className="text-slate-500">Employee ID</p>
-                <p className="font-medium text-slate-800 dark:text-slate-200">{payslip.employee_id_display}</p>
+                <p className="font-medium text-slate-800 dark:text-slate-200">{base.employee_id_display}</p>
               </div>
               <div>
                 <p className="text-slate-500">Department</p>
-                <p className="font-medium text-slate-800 dark:text-slate-200">{payslip.department || 'N/A'}</p>
+                <p className="font-medium text-slate-800 dark:text-slate-200">{base.department || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-slate-500">Tax Code</p>
-                <p className="font-medium text-slate-800 dark:text-slate-200">{payslip.tax_code_display || 'Standard'}</p>
+                <p className="font-medium text-slate-800 dark:text-slate-200">{base.tax_code_display || 'Standard'}</p>
               </div>
             </div>
             
@@ -130,15 +98,15 @@ function MyPayslipsPage() {
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
                   <p className="text-slate-500">Days Worked</p>
-                  <p className="font-medium">{payslip.worked_days || 0}</p>
+                  <p className="font-medium">{base.worked_days || 0}</p>
                 </div>
                 <div>
                   <p className="text-slate-500">Absent</p>
-                  <p className="font-medium">{payslip.absent_days || 0}</p>
+                  <p className="font-medium">{base.absent_days || 0}</p>
                 </div>
                 <div>
                   <p className="text-slate-500">Leave</p>
-                  <p className="font-medium">{payslip.leave_days || 0}</p>
+                  <p className="font-medium">{base.leave_days || 0}</p>
                 </div>
               </div>
             </div>
@@ -155,17 +123,17 @@ function MyPayslipsPage() {
                     <span className="font-medium text-slate-800 dark:text-slate-200">{formatMoney(item.amount)}</span>
                   </div>
                 ))}
-                {payslip.overtime_pay > 0 && (
+                {base.overtime_pay > 0 && (
                   <div className="flex justify-between text-sm py-1 border-b border-slate-100 dark:border-slate-700">
                     <span className="text-slate-600 dark:text-slate-400">
-                      Overtime ({payslip.overtime_hours}h × {payslip.overtime_rate}x)
+                      Overtime ({base.overtime_hours}h × {base.overtime_rate}x)
                     </span>
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{formatMoney(payslip.overtime_pay)}</span>
+                    <span className="font-medium text-slate-800 dark:text-slate-200">{formatMoney(base.overtime_pay)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-semibold pt-2 text-emerald-600">
                   <span>Gross Pay</span>
-                  <span>{formatMoney(payslip.gross_pay)}</span>
+                  <span>{formatMoney(base.gross_pay)}</span>
                 </div>
               </div>
             </div>
@@ -184,7 +152,7 @@ function MyPayslipsPage() {
                 ))}
                 <div className="flex justify-between font-semibold pt-2 text-red-600">
                   <span>Total Deductions</span>
-                  <span>-{formatMoney(parseFloat(payslip.total_deductions) + parseFloat(payslip.tax_amount))}</span>
+                  <span>-{formatMoney(parseFloat(base.total_deductions) + parseFloat(base.tax_amount))}</span>
                 </div>
               </div>
             </div>
@@ -192,19 +160,19 @@ function MyPayslipsPage() {
             {/* Net Pay */}
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white text-center">
               <p className="text-sm opacity-80 mb-1">Net Pay</p>
-              <p className="text-3xl font-bold">{formatMoney(payslip.net_pay)}</p>
+              <p className="text-3xl font-bold">{formatMoney(base.net_pay)}</p>
               <p className="text-xs opacity-70 mt-2">
                 Payment via {details.paymentMethod || 'Bank Transfer'} on {details.paymentDate || 'N/A'}
               </p>
             </div>
             
             {/* Issue Note */}
-            {payslip.has_issues && payslip.issue_notes && (
+            {base.has_issues && base.issue_notes && (
               <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                 <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
                   <AlertCircle size={16} /> Issue Note
                 </p>
-                <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">{payslip.issue_notes}</p>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">{base.issue_notes}</p>
               </div>
             )}
           </div>
@@ -248,11 +216,10 @@ function MyPayslipsPage() {
             <p className="text-sm">Your payslips will appear here once they are finalized.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {payslips.map(payslip => (
-              <PayslipCard key={payslip.id} payslip={payslip} />
-            ))}
-          </div>
+          <MyPayslipList
+            payslips={payslips}
+            onView={(p) => setSelectedPayslip(p.raw || p)}
+          />
         )}
       </main>
 

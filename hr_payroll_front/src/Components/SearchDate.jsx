@@ -8,7 +8,7 @@ export default function SearchDate({
   style = "border border-slate-200 bg-slate-50 shadow",
   applyButton = true, // ← New prop
 }) {
-  const [mode, setMode] = useState("single");
+  const [mode, setMode] = useState("range");
   const [singleDate, setSingleDate] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");

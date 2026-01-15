@@ -20,7 +20,7 @@ const formatMoney = (amount) => {
 function EmptyComponent() {
   return <div>No component provided</div>;
 }
-const BASE_URL = import.meta.env.VITE_BASE_URL;
+const BASE_URL = import.meta.env.VITE_BASE_URL || '';
 function TableStructures({
   data = '',
   id,
@@ -76,10 +76,32 @@ function TableStructures({
             <img
               className="h-8 w-8 rounded-full object-cover border border-gray-200 dark:border-gray-600"
               src={
-                item[0].startsWith('http') ? item[0] : `${BASE_URL}${item[0]}`
+                item[0].startsWith('http')
+                  ? item[0]
+                  : item[0].startsWith('/')
+                  ? item[0]
+                  : `${BASE_URL}${item[0]}`
               }
               alt={item[1]}
               onError={(e) => {
+                try {
+                  const currentSrc = e.target.getAttribute('src') || '';
+                  if (
+                    currentSrc &&
+                    !currentSrc.startsWith('http') &&
+                    !currentSrc.startsWith('data:') &&
+                    BASE_URL
+                  ) {
+                    e.target.onerror = null;
+                    const fixed = currentSrc.startsWith('/')
+                      ? `${BASE_URL}${currentSrc}`
+                      : `${BASE_URL}/${currentSrc}`;
+                    e.target.src = fixed;
+                    return;
+                  }
+                } catch (err) {
+                  // fall through to hide
+                }
                 e.target.style.display = 'none';
                 const fallback = e.target.nextSibling;
                 if (fallback) fallback.style.display = 'flex';
@@ -135,7 +157,7 @@ function TableStructures({
                 isModalOpen={isModalOpen}
                 closeModal={setModalOpen}
               >
-                <Comps data={data} />
+                <Comps payroll={data?.raw || data} data={data} />
                 {console.log('data', data)}
               </FileDrawer>
             )}
@@ -192,7 +214,7 @@ function TableStructures({
                 closeModal={setModalOpen}
               >
                 {/* <PayrollReportDrawer data={data}/> */}
-                <Comps data={data} />
+                <Comps payroll={data?.raw || data} data={data} />
               </FileDrawer>
             )}
           </div>
@@ -255,7 +277,7 @@ function TableStructures({
                   onSave={(updatedPayroll) => {
                     console.log('Saved:-', updatedPayroll);
                   }}
-                  payroll={data}
+                  payroll={data?.raw || data}
                   Id={`${data?.id}`}
                 />
               </FileDrawer>
@@ -267,7 +289,7 @@ function TableStructures({
       return (
         <div className="px-2 text-xs">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-slate-300 shadow flex items-center justify-center dark:bg-slate-300 text-slate-700 font-bold text-xs">
+            <div className="w-8 h-8 rounded-full = shadow flex items-center justify-center  text-slate-700 font-bold text-xs">
               {item[0]?.charAt(0)}
               {item[0]?.split(' ')[1]?.charAt(0)}
             </div>
@@ -285,7 +307,7 @@ function TableStructures({
                   {item[0]}
                 </p>
               </div>
-              <p className="text-xs dark:text-slate-300 dark:bg-slate-300 text-slate-500">
+              <p className="text-xs dark:text-slate-300  text-slate-500">
                 {item[1]}
               </p>
             </div>
@@ -377,7 +399,7 @@ function TableStructures({
                   isModalOpen={isModalOpen}
                   closeModal={setModalOpen}
                 >
-                  <Comps editable={true} payroll={data} />
+                  <Comps editable={true} payroll={data?.raw || data} />
                   {/* <Comps month={D2} demoEmployees={rawData} Id={`${data?.id}`}/> */}
                   {/* {console.log("aaaaaaaaaaaaaaaaaaaaaaaa",data[id]?.id)} */}
                   {/* {console.log("data in table structure---->",data," id---->",id," item---->",item," rawData---->",rawData,"D1",D1)} */}
@@ -399,7 +421,7 @@ function TableStructures({
                   isModalOpen={isModalOpen}
                   closeModal={setModalOpen}
                 >
-                  <Comps payroll={data} />
+                  <Comps payroll={data?.raw || data} />
                   {console.log("i'm here just to check my own payslip")}
                   {/* {console.log("aaaaaaaaaaaaaaaaaaaaaaaa",data[id]?.id)} */}
                   {/* {console.log("data in table structure---->",data," id---->",id," item---->",item," rawData---->",rawData,"D1",D1)} */}

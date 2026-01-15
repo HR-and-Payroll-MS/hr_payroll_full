@@ -187,6 +187,7 @@ function App() {
               path="view_generated_payslips"
               element={<ViewGeneratedPayslips />}
             />
+            <Route path="my-payslips" element={<MyPayslipsPage />} />
             <Route
               path="department_wise_paryoll"
               element={<DepartmentWisePayroll />}
@@ -223,6 +224,7 @@ function App() {
             <Route path="Announcement" element={<AnnouncementsPage />} />
             <Route path="Payroll_report" element={<PayrollReportsPage />} />
             <Route path="MyPayroll" element={<MyPayrollPage />} />
+            <Route path="my-payslips" element={<MyPayslipsPage />} />
             <Route path="policies" element={<Policy />} />
             {/* <Route path="logout" element={<LogOut />} /> */}
             <Route path="profile" element={<MyProfile />} />
@@ -317,6 +319,7 @@ function App() {
             <Route path="payroll_reports" element={<PayrollReports />} />
             <Route path="tax_reports" element={<TaxReports />} />
             <Route path="myattendance" element={<MyAttendance />} />
+            <Route path="myovertime" element={<MyOvertimePage />} />
             <Route path="clock_in" element={<ClockIn />} />
             <Route path="Efficiency_Result" element={<EmployeeEfficiencyResult />} />
             <Route path="my-department" element={<MyDepartment />} />
@@ -375,6 +378,7 @@ function App() {
             />
             <Route path="myattendance" element={<MyAttendance />} />
             <Route path="myovertime" element={<MyOvertimePage />} />
+            <Route path="my-payslips" element={<MyPayslipsPage />} />
 
             <Route path="org-chart" element={<DocumentsPage />} />
             {/* <Route path="Modal_Test" element={<Checklist />} /> */}

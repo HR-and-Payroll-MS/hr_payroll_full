@@ -1,45 +1,69 @@
-import React, { useState } from "react";
-import MyPayslipList from "../../MyPayslipList";
-import MyPayslipDrawer from "./MyPayslipDrawer";
-import Table from '../../../Components/Table'
-import PayrollReportDrawer from "./PayrollReportDrawer";
-import PayslipTemplate from "../../../Components/PayslipTemplate";
-import EmployeePayslipTemplate from "../../../Components/EmployeePayslipTemplate";
+import React, { useState, useEffect, useCallback } from 'react';
+import useAuth from '../../../Context/AuthContext';
+import Table from '../../../Components/Table';
+import EmployeePayslipTemplate from '../../../Components/EmployeePayslipTemplate';
 
-function MyPayrollPage({background,headerfont="text-2xl"}) {
-  // static placeholder data
-  const payslips = [
-    {
-      id: 1,
-      month: "January 2025",
-      gross: 8000,
-      deductions: 1200,
-      net: 6800,
-    },
-    {
-      id: 2,
-      month: "February 2025",
-      gross: 8000,
-      deductions: 1250,
-      net: 6750,
-    },
-  ];
+function MyPayrollPage({ background, headerfont = 'text-2xl' }) {
+  const { axiosPrivate } = useAuth();
+  const [payslips, setPayslips] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const structure = [1,1,63]
-  const key =[['month'],['net']]
-  const title = ["Month","Net Salary","Action"]
+  const fetchMyPayslips = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await axiosPrivate.get('/payroll/my-payslips/');
+      const results = res.data.results || res.data || [];
+      // Map to table-friendly shape
+      const mapped = results.map((p) => ({
+        id: p.id,
+        month:
+          p.details?.month ||
+          `${p.period?.month || ''} ${p.period?.year || ''}`,
+        net: p.net_pay || p.net || 0,
+        gross: p.gross_pay || p.gross || 0,
+        deductions: (p.total_deductions || 0) + (p.tax_amount || 0),
+        payslipId: p.id,
+        raw: p,
+      }));
+      setPayslips(mapped);
+    } catch (e) {
+      console.error('Failed to fetch my payslips', e);
+      setError('Failed to load payslips');
+      setPayslips([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [axiosPrivate]);
 
-  const [selected, setSelected] = useState(null);
+  useEffect(() => {
+    fetchMyPayslips();
+  }, [fetchMyPayslips]);
+
+  const structure = [1, 1, 63];
+  const key = [['month'], ['net']];
+  const title = ['Month', 'Net Salary', 'Action'];
 
   return (
     <div className={`p-5 ${background}`}>
-    <h1 className={` font-semibold mb-4 ${headerfont}`}>Payslips</h1>
+      <h1 className={` font-semibold mb-4 ${headerfont}`}>Payslips</h1>
 
-{/* <Table D1= "generate" Data={payslips} Structure={structure} ke={key} title={title} nickname="View Payslip" components={PayslipTemplate}/> */}
-<Table D1= "generate" Data={payslips} Structure={structure} ke={key} title={title} nickname="View Payslip" components={EmployeePayslipTemplate}/>
-{/* <Table Data={payslips} Structure={structure} ke={key} title={title} nickname="View Payslip" components={MyPayslipDrawer}/> */}
-
-     
+      {loading ? (
+        <div>Loading payslips…</div>
+      ) : error ? (
+        <div className="text-red-600">{error}</div>
+      ) : (
+        <Table
+          D1="generate"
+          Data={payslips}
+          Structure={structure}
+          ke={key}
+          title={title}
+          nickname="View Payslip"
+          components={EmployeePayslipTemplate}
+        />
+      )}
     </div>
   );
 }

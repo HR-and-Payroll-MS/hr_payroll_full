@@ -429,16 +429,40 @@ class PayrollCalculationService:
         
         exemptions_configs = getattr(self.tax_version, 'exemptions_config', [])
         exemptions_applied = []
+        # Overtime pay (Decimal) - used when exemptions exclude overtime
+        overtime_pay = Decimal('0')
+        try:
+            overtime_pay = Decimal(str(overtime_data.get('pay', 0))) if isinstance(overtime_data, dict) else Decimal('0')
+        except Exception:
+            overtime_pay = Decimal('0')
+
         for ec in exemptions_configs:
             limit = Decimal(str(ec.get('limit', 0)))
-            if limit > 0:
+            if limit <= 0:
+                continue
+
+            # Determine whether this exemption may reduce overtime (default: True)
+            ot_taxable = bool(ec.get('overtimeTaxable', True))
+
+            if ot_taxable:
+                # Apply exemption against the whole taxable income
                 applied = min(taxable_income, limit) if taxable_income > 0 else Decimal('0')
-                taxable_income = max(0, taxable_income - limit)
-                exemptions_applied.append({
-                    'name': ec.get('name') or 'Exemption',
-                    'applied': float(self._round(applied)),
-                    'limit': float(self._round(limit))
-                })
+            else:
+                # Apply exemption only against the non-overtime portion
+                non_ot_taxable = taxable_income - overtime_pay
+                if non_ot_taxable < 0:
+                    non_ot_taxable = Decimal('0')
+                applied = min(non_ot_taxable, limit) if non_ot_taxable > 0 else Decimal('0')
+
+            # Subtract the actual applied amount (not the configured limit)
+            taxable_income = max(Decimal('0'), taxable_income - applied)
+
+            exemptions_applied.append({
+                'name': ec.get('name') or 'Exemption',
+                'applied': float(self._round(applied)),
+                'limit': float(self._round(limit)),
+                'overtimeTaxable': ot_taxable,
+            })
 
         # Early reason markers
         if len(self.tax_brackets) == 0:

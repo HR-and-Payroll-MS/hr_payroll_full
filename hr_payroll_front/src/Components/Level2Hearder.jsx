@@ -5,7 +5,13 @@ import Button from './Button';
 import { useState } from 'react';
 import ConfirmPopup from './ConfirmPopup';
 
-export function SearchStatus({ onFiltersChange,setFilter ,employeeClicked}) {
+export function SearchStatus({
+  onFiltersChange,
+  setFilter,
+  employeeClicked,
+  showSort = false,
+  onSortChange,
+}) {
   const handleFilter = (item, key) => {
     if (!item) return;
     // console.log("Dropdown selected:", item, "key:", key);
@@ -21,7 +27,7 @@ export function SearchStatus({ onFiltersChange,setFilter ,employeeClicked}) {
 
   const handleEmployeeSelect = (employee) => {
     // console.log(employee)
-    if(employeeClicked)employeeClicked(employee?.id);
+    if (employeeClicked) employeeClicked(employee?.id);
     // onFiltersChange({ employee: employee.name });
   };
 
@@ -52,17 +58,47 @@ export function SearchStatus({ onFiltersChange,setFilter ,employeeClicked}) {
     { content: 'InActive', svg: null },
   ];
 
+  const handleSortChange = (val) => {
+    if (!onSortChange) return;
+    // Normalize to internal keys
+    switch (val) {
+      case 'Name (A → Z)':
+        onSortChange('name-asc');
+        break;
+      case 'Name (Z → A)':
+        onSortChange('name-desc');
+        break;
+      case 'Join Date (Newest)':
+        onSortChange('date-desc');
+        break;
+      case 'Join Date (Oldest)':
+        onSortChange('date-asc');
+        break;
+      default:
+        onSortChange('name-asc');
+    }
+  };
+
+  const sortOptions = [
+    { content: 'Sort By', placeholder: true },
+    { content: 'Name (A → Z)' },
+    { content: 'Name (Z → A)' },
+    { content: 'Join Date (Newest)' },
+    { content: 'Join Date (Oldest)' },
+  ];
+
   return (
-    <div id="left" className="flex py-2 justify-start gap-4 items-center">
+    <div
+      id="left"
+      className="flex py-2 justify-start gap-4 items-center flex-wrap"
+    >
       <InputField
-        searchMode='input'
+        searchMode="input"
         placeholder={'Search Employee'}
         apiEndpoint="/api/employees/search"
         displayKey="name"
-        onSelect={(e)=>employeeClicked(e)}
+        onSelect={(e) => employeeClicked(e)}
       />
-
-      
 
       <div className="flex gap-4 dark:text-slate-300  dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
         <Dropdown
@@ -72,13 +108,22 @@ export function SearchStatus({ onFiltersChange,setFilter ,employeeClicked}) {
           placeholder="Gender"
           border="border gap-1 border-gray-100"
         />
-       <Dropdown
+        <Dropdown
           onChange={(i) => handleFilter(i, 'is_active')}
           options={statOptions}
           text="text-xs font-semibold"
           placeholder="All Status"
           border="border gap-1 border-gray-100"
         />
+        {showSort && (
+          <Dropdown
+            onChange={handleSortChange}
+            options={sortOptions}
+            text="text-xs font-semibold"
+            placeholder="Sort By"
+            border="border gap-1 border-gray-100"
+          />
+        )}
       </div>
 
       <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
@@ -146,7 +191,7 @@ export function AttendanceFilterBar({ filters, setFilters }) {
   const currentYear = new Date().getFullYear();
   const years = [
     { content: 'All' },
-    ...Array.from({ length: 5 }, (_, i) => ({ content: currentYear - i }))
+    ...Array.from({ length: 5 }, (_, i) => ({ content: currentYear - i })),
   ];
   const statuses = [
     { content: 'All' },
@@ -168,26 +213,33 @@ export function AttendanceFilterBar({ filters, setFilters }) {
         <Dropdown
           placeholder="Month"
           options={months}
-          value={localFilters.month === 'All' || localFilters.month === 0 ? 'All' : months[localFilters.month]?.content}
+          value={
+            localFilters.month === 'All' || localFilters.month === 0
+              ? 'All'
+              : months[localFilters.month]?.content
+          }
           onChange={(e) => {
-            const mIndex = months.findIndex(m => m.content === e);
-            setLocalFilters(f => ({ ...f, month: mIndex === 0 ? 'All' : mIndex }));
+            const mIndex = months.findIndex((m) => m.content === e);
+            setLocalFilters((f) => ({
+              ...f,
+              month: mIndex === 0 ? 'All' : mIndex,
+            }));
           }}
         />
         <Dropdown
           placeholder="Year"
           options={years}
           value={localFilters.year}
-          onChange={(e) => setLocalFilters(f => ({ ...f, year: e }))}
+          onChange={(e) => setLocalFilters((f) => ({ ...f, year: e }))}
         />
         <Dropdown
           placeholder="Status"
           options={statuses}
           value={localFilters.status}
-          onChange={(e) => setLocalFilters(f => ({ ...f, status: e }))}
+          onChange={(e) => setLocalFilters((f) => ({ ...f, status: e }))}
         />
       </div>
-      <button 
+      <button
         onClick={handleApply}
         className="ml-auto px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md font-bold text-sm transition-all active:scale-95 shadow-sm"
       >
@@ -221,7 +273,7 @@ export function ApproveReject({ FiltersChange }) {
       className="flex py-2.5 gap-3 w-full justify-start items-center"
     >
       <InputField
-        searchMode='input'
+        searchMode="input"
         placeholder={'Search Employee'}
         displayKey="name"
         onSelect={handleEmployeeSelect}
@@ -240,11 +292,10 @@ export function ApproveReject({ FiltersChange }) {
   );
 }
 export function LeaveRequest({ setQ, setdate, setstatus }) {
-
   // 🔹 STATUS (Dropdown emits STRING)
   const handleFilter = (value) => {
     if (!value) {
-      setstatus("all");
+      setstatus('all');
       return;
     }
     setstatus(value.toLowerCase());
@@ -252,26 +303,26 @@ export function LeaveRequest({ setQ, setdate, setstatus }) {
 
   // 🔹 SEARCH
   const handleEmployeeSelect = (searchTerm) => {
-    setQ(searchTerm || "");
+    setQ(searchTerm || '');
   };
 
   // 🔹 DATE (SearchDate emits {type, from, to} OR {type, date})
   const handleDateChange = (payload) => {
     console.log('date payload', payload);
     if (!payload) {
-      setdate("all");
+      setdate('all');
       return;
     }
     // if(payload.from===null&&payload.to===null&&payload.date===null){setdate("all"); return;}
 
     // Single date
-    if (payload.type === "single") {
+    if (payload.type === 'single') {
       setdate(payload.date);
       return;
     }
 
     // Range date
-    if (payload.type === "range") {
+    if (payload.type === 'range') {
       const from = payload.from;
       const to = payload.to;
 
@@ -281,30 +332,30 @@ export function LeaveRequest({ setQ, setdate, setstatus }) {
       } else if (from) {
         setdate(from);
       } else {
-        setdate("all");
+        setdate('all');
       }
     }
   };
 
   const status = [
-    { content: "All", svg: null, placeholder: true },
-    { content: "Approved", svg: null },
-    { content: "Denied", svg: null },
-    { content: "Pending", svg: null },
+    { content: 'All', svg: null, placeholder: true },
+    { content: 'Approved', svg: null },
+    { content: 'Denied', svg: null },
+    { content: 'Pending', svg: null },
   ];
 
   return (
     <div className="flex py-2.5 gap-3 w-full justify-start items-center">
       <InputField
         searchMode="input"
-        placeholder={"Search title or content..."}
+        placeholder={'Search title or content...'}
         displayKey="name"
         onSelect={handleEmployeeSelect}
       />
 
       <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
         <Dropdown
-          onChange={handleFilter}      // ✅ string-based
+          onChange={handleFilter} // ✅ string-based
           options={status}
           text="text-xs font-semibold"
           placeholder="All Priority"
@@ -316,7 +367,7 @@ export function LeaveRequest({ setQ, setdate, setstatus }) {
         style=""
         applyButton={false}
         isSingle={false}
-        onSubmit={handleDateChange}   // ✅ fixed
+        onSubmit={handleDateChange} // ✅ fixed
       />
     </div>
   );
@@ -346,7 +397,7 @@ export function AnnouncementSearch({ setQ, setPriority }) {
       className="flex py-2.5 gap-3 w-full justify-start items-center"
     >
       <InputField
-        searchMode='input'
+        searchMode="input"
         placeholder={'Search title or content...'}
         displayKey="name"
         onSelect={handleEmployeeSelect}
@@ -364,10 +415,7 @@ export function AnnouncementSearch({ setQ, setPriority }) {
     </div>
   );
 }
-export function Generatepayroll({
-   setPriority,
-   employees,
-   }) {
+export function Generatepayroll({ setPriority, employees }) {
   const handleFilter = (employee) => {
     console.log('search', employee);
     setPriority(employee);
@@ -385,21 +433,34 @@ export function Generatepayroll({
 
   return (
     <div className="px-6 dark:border-slate-700   border-slate-200 dark:bg-slate-800 flex justify-between items-center bg-white">
-      <h3 className="font-semibold dark:text-slate-300 text-slate-800">Employee Payroll Sheet</h3>
-      <div className='flex gap-2'>
+      <h3 className="font-semibold dark:text-slate-300 text-slate-800">
+        Employee Payroll Sheet
+      </h3>
+      <div className="flex gap-2">
         <div className="flex dark:text-slate-300  dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
-          <Dropdown  options={Department} text="text-xs font-semibold" placeholder="Department 1" border="border gap-1 border-gray-100" />
-        </div> 
+          <Dropdown
+            options={Department}
+            text="text-xs font-semibold"
+            placeholder="Department 1"
+            border="border gap-1 border-gray-100"
+          />
+        </div>
         <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
-          <Dropdown onChange={(i) => handleFilter(i)} options={PayrollCycle} text="text-xs font-semibold" placeholder="Monthly" border="border gap-1 border-gray-100" />
+          <Dropdown
+            onChange={(i) => handleFilter(i)}
+            options={PayrollCycle}
+            text="text-xs font-semibold"
+            placeholder="Monthly"
+            border="border gap-1 border-gray-100"
+          />
         </div>
         <div className="flex dark:text-slate-200 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
           <span className="text-xs p-4 h-fit font-medium  text-slate-500 bg-slate-100 px-2 py-1 rounded-md">
             {employees} Active Records
           </span>
-        </div> 
+        </div>
       </div>
-      </div>
+    </div>
   );
 }
 export function ViewEditPayslips({ setQ, setPriority, action }) {
@@ -410,7 +471,7 @@ export function ViewEditPayslips({ setQ, setPriority, action }) {
   const handleEmployeeSelect = (employee) => {
     setQ(employee);
   };
-  const [popup,setpopup]= useState(false)
+  const [popup, setpopup] = useState(false);
   const PayrollCycle = [
     { content: 'Monthly', svg: null },
     { content: 'Weekly', svg: null },
@@ -427,28 +488,29 @@ export function ViewEditPayslips({ setQ, setPriority, action }) {
       id="left"
       className="flex p-2.5 gap-3 w-full justify-between items-center"
     >
-      <div className='flex gap-3 flex-1'>
-      <SearchDate style='' />
-      <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
-        <Dropdown
-          onChange={(i) => handleFilter(i)}
-          options={Department}
-          text="text-xs font-semibold"
-          placeholder="Department 1"
-          border="border gap-1 border-gray-100"
-        />
+      <div className="flex gap-3 flex-1">
+        <SearchDate style="" />
+        <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
+          <Dropdown
+            onChange={(i) => handleFilter(i)}
+            options={Department}
+            text="text-xs font-semibold"
+            placeholder="Department 1"
+            border="border gap-1 border-gray-100"
+          />
+        </div>
+        <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
+          <Dropdown
+            onChange={(i) => handleFilter(i)}
+            options={PayrollCycle}
+            text="text-xs font-semibold"
+            placeholder="Monthly"
+            border="border gap-1 border-gray-100"
+          />
+        </div>
       </div>
-      <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
-        <Dropdown
-          onChange={(i) => handleFilter(i)}
-          options={PayrollCycle}
-          text="text-xs font-semibold"
-          placeholder="Monthly"
-          border="border gap-1 border-gray-100"
-        />
-      </div></div>
       <InputField
-      searchMode='input'
+        searchMode="input"
         placeholder={'Search title or content...'}
         displayKey="name"
         onSelect={handleEmployeeSelect}
@@ -505,9 +567,12 @@ export function AttendanceStatus({ onFiltersChange }) {
   ];
 
   return (
-    <div id="left" className="flex py-2.5 gap-3 justify-between max-w-full items-center">
+    <div
+      id="left"
+      className="flex py-2.5 gap-3 justify-between max-w-full items-center"
+    >
       <InputField
-      searchMode='api'
+        searchMode="api"
         placeholder={'Search Employee'}
         apiEndpoint="/api/employees/search"
         displayKey="name"
@@ -555,94 +620,11 @@ export function AttendanceStatus({ onFiltersChange }) {
       </div>
 
       <div className="flex dark:text-slate-300 dark:border-slate-700 text-gray-700 items-center justify-between rounded-md">
-        <SearchDate isSingle={true} style=''/>
+        <SearchDate isSingle={true} style="" />
       </div>
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 {
   /* <div>

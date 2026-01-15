@@ -4,17 +4,34 @@ import Table from '../../Components/Table';
 import useAuth from '../../Context/AuthContext';
 
 const MyOvertimePage = () => {
-    const { axiosPrivate } = useAuth();
+    const { axiosPrivate, user: authUser } = useAuth();
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const response = await axiosPrivate.get('/attendances/overtime/');
-                // The backend returns a list of overtime requests.
-                // OvertimeRequestSerializer fields: id, date, hours, justification, manager_name, status
-                setData(response.data.results || response.data);
+                const response = await axiosPrivate.get('/attendances/requests/overtime/');
+                const raw = response.data.results || response.data || [];
+                const empId = authUser?.employee_id ? Number(authUser.employee_id) : null;
+                const isEmployee = authUser?.role && authUser.role.toLowerCase().includes('employee');
+
+                let filtered = raw;
+                // For employees, show only assignments that include them
+                if (isEmployee && empId) {
+                    filtered = raw.filter((item) => {
+                        if (Array.isArray(item.employees)) return item.employees.includes(empId);
+                        return false;
+                    });
+                }
+
+                // Normalize manager_name fallback
+                filtered = filtered.map((item) => ({
+                    ...item,
+                    manager_name: item.manager_name || item.manager || '-'
+                }));
+
+                setData(filtered);
             } catch (error) {
                 console.error("Error fetching overtime data:", error);
             } finally {
@@ -22,7 +39,7 @@ const MyOvertimePage = () => {
             }
         };
         fetchData();
-    }, [axiosPrivate]);
+    }, [axiosPrivate, authUser]);
 
     const tableStructure = [
         { type: "text", key: "date" },

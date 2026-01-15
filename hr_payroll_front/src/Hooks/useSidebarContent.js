@@ -37,6 +37,7 @@ export const sidebarList = {
     Visible: false,
     sub: [
       { subPath: 'view_generated_payslips', label: 'View/Edit Generated Payslips' },
+      { subPath: 'my-payslips', label: 'My Payslips' },
     ],
   },
   {
@@ -120,6 +121,13 @@ export const sidebarList = {
         // { subPath: 'Employee/Directory', label: 'Manage Holidays' },
         // { subPath: 'Modal_Test', label: 'Manage Time Off Requests' },
       ],
+    },
+    {
+      Icons: 'Receipt',
+      path: 'my-payslips',
+      label: 'My Payslips',
+      Visible: false,
+      sub: null,
     },
     {
       Icons: 'Timer',
@@ -231,7 +239,7 @@ export const sidebarList = {
     ],
   },
   {
-    path: 'MyPayroll',
+    path: 'my-payslips',
     Icons: 'Receipt',
     label: 'View Payslips',
     Visible: false,
@@ -312,6 +320,13 @@ export const sidebarList = {
     Icons: 'Bell',
     path: "OverTimeInitiation",
     label: 'Initiate OverTime',
+    Visible: false,
+    sub: null,
+  },
+  {
+    Icons: 'Receipt',
+    path: 'my-payslips',
+    label: 'My Payslips',
     Visible: false,
     sub: null,
   },

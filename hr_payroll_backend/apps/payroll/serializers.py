@@ -57,12 +57,34 @@ class PayslipSerializer(serializers.ModelSerializer):
         return obj.employee.job_title
     
     def get_bank_account(self, obj):
+        request = self.context.get('request') if hasattr(self, 'context') else None
         bank = obj.employee.bank_name or ''
         account = obj.employee.bank_account or ''
-        if account:
-            # Mask account number
-            return f"{bank} ****{account[-4:]}" if len(account) >= 4 else f"{bank} {account}"
-        return None
+        full = f"{bank} {account}".strip()
+
+        # Determine access: only HR Managers or the employee themselves (or superuser) may see full account
+        can_view_full = False
+        if request and getattr(request, 'user', None) and request.user.is_authenticated:
+            user = request.user
+            if user.is_superuser:
+                can_view_full = True
+            # HR Manager group
+            if user.groups.filter(name__iexact='HR Manager').exists():
+                can_view_full = True
+            # Employee owner
+            if hasattr(user, 'employee') and user.employee and user.employee == obj.employee:
+                can_view_full = True
+
+        if not account:
+            return bank or None
+
+        if can_view_full:
+            return full
+
+        # Fallback: masked account
+        if len(account) >= 4:
+            return f"{bank} ****{account[-4:]}" if bank else f"****{account[-4:]}"
+        return f"{bank} {account}".strip()
     
     def get_tax_code_display(self, obj):
         if obj.tax_code and obj.tax_code_version:

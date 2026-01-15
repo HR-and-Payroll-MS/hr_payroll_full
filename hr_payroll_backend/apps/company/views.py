@@ -3,7 +3,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.db.models import Sum
+from django.db.models import Sum, Count, Avg
+from datetime import datetime, timedelta
 from .models import CompanyInfo
 from .serializers import CompanyInfoSerializer
 
@@ -68,10 +69,24 @@ class DashboardStatsView(APIView):
             from datetime import datetime, timedelta
             
             user = request.user
-            # Safely get role
+            # Safely get role (normalize common variants)
+            def _norm(role_name):
+                if not role_name:
+                    return None
+                r = role_name.strip().lower().replace('-', '_').replace(' ', '_')
+                if r in ['payroll_officer', 'payroll']:
+                    return 'Payroll'
+                if r in ['department_manager', 'dept_manager', 'line_manager', 'line_manager_member']:
+                    return 'Department_Manager'
+                if r in ['hr', 'hr_manager', 'manager', 'human_resources']:
+                    return 'Manager'
+                if r == 'employee':
+                    return 'Employee'
+                return role_name
+
             role = None
             if user.groups.exists():
-                role = user.groups.first().name
+                role = _norm(user.groups.first().name)
             
             # Try to get employee from user
             employee = None
@@ -385,18 +400,18 @@ class DashboardStatsView(APIView):
         from django.db.models import Sum, Count
         from apps.departments.models import Department
         
-        pending_periods = PayrollPeriod.objects.filter(status='Draft').count()
+        pending_periods = PayrollPeriod.objects.filter(status__iexact='draft').count()
         processed_this_month = PayrollPeriod.objects.filter(
-            status__in=['Approved', 'Finalized'],
+            status__in=['approved', 'finalized', 'Approved', 'Finalized'],
             created_at__gte=month_start
         ).count()
-        
+
         total_disbursed = Payslip.objects.filter(
-            period__status='Finalized',
+            period__status__iexact='finalized',
             period__created_at__gte=year_start
         ).aggregate(total=Sum('net_pay'))['total'] or 0
-        
-        pending_approval = PayrollPeriod.objects.filter(status='Submitted').count()
+
+        pending_approval = PayrollPeriod.objects.filter(status__iexact='pending_approval').count()
         
         # Monthly totals for line chart
         from datetime import timedelta

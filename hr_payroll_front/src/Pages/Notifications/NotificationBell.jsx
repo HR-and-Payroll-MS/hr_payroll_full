@@ -1,5 +1,7 @@
 
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import useAuth from "../../Context/AuthContext";
 import { ROLE_RECEIVE_TYPES, formatTime, notificationIcon } from "./utils";
 import useOutside from "./useOutside";
 import Icon from "../../Components/Icon";
@@ -11,6 +13,10 @@ export default function NotificationBell({ role = "EMPLOYEE", onOpenCenter }) {
   if (!notifications) return null;
 
   const { items, unreadCount, markRead, markAllRead, setSelected } = notifications;
+
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const currentRole = auth?.user?.role || role || "EMPLOYEE";
 
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -32,6 +38,40 @@ export default function NotificationBell({ role = "EMPLOYEE", onOpenCenter }) {
         if (a.unread === b.unread) return 0;
         return a.unread ? -1 : 1; 
     });
+
+  const normalizeLink = (link, n) => {
+    if (!link || typeof link !== "string") return null;
+    let path = link.trim();
+    // Strip query/hash
+    path = path.split("?")[0].split("#")[0];
+    // Remove trailing numeric/hex-like ID segments to avoid 404
+    path = path.replace(/\/+$/, "");
+    const segs = path.split("/").filter(Boolean);
+    if (segs.length > 0) {
+      const last = segs[segs.length - 1];
+      if (/^\d+$/.test(last) || /^[0-9a-fA-F]{8,}$/.test(last)) {
+        segs.pop();
+        path = "/" + segs.join("/");
+      }
+    }
+    path = path.replace(/^\/employee\b/i, "/Employee");
+    path = path.replace(/^\/payroll\b/i, "/Payroll");
+      const cat = (n?.category || n?.notification_type || "").toLowerCase();
+      if (cat.includes("tax")) return null; // stay in detail for tax code notifications
+    if (/^\/leaves(\/|$)/i.test(path)) {
+      const roleNorm = (currentRole || "").toLowerCase();
+      if (roleNorm.includes("employee")) return "/Employee/Request";
+      if (roleNorm.includes("line manager")) return "/department_manager/Approve_Reject";
+      if (roleNorm.includes("manager") || roleNorm.includes("hr")) return "/hr_dashboard/Approve_Reject";
+      return "/Employee/Request";
+    }
+    if (!/^\//.test(path) || path === "/") {
+      if (cat.includes("attendance")) return "/Employee/myovertime";
+      if (cat.includes("leave")) return "/Employee/Request";
+      if (cat.includes("payroll")) return "/Employee/my-payslips";
+    }
+    return path;
+  };
 
   return (
     <div className="relative z-40" ref={ref}>
@@ -82,9 +122,16 @@ export default function NotificationBell({ role = "EMPLOYEE", onOpenCenter }) {
                   key={n.id}
                   onClick={() => {
                     markRead(n.id);
-                    setSelected(n);
-                    onOpenCenter?.();
-                    setOpen(false);
+                    const rawLink = n.related_link || n.link;
+                    const target = normalizeLink(rawLink, n);
+                    if (target) {
+                      navigate(target);
+                      setOpen(false);
+                    } else {
+                      setSelected(n);
+                      onOpenCenter?.();
+                      setOpen(false);
+                    }
                   }}
                   className={`relative p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/30 flex gap-4 items-start border-b border-slate-50 dark:border-slate-700/30 transition-all ${
                     n.unread ? "bg-slate-50/50 dark:bg-slate-900/20" : ""

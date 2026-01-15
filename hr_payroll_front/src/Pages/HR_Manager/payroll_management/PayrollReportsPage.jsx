@@ -1,35 +1,29 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
+import dayjs from 'dayjs';
+import ExportTable from '../../../Components/ExportTable';
+import Dropdown from '../../../Components/Dropdown';
 import useAuth from '../../../Context/AuthContext';
+import EmployeePayslipTemplate from '../../../Components/EmployeePayslipTemplate';
 import Header from '../../../Components/Header';
-import { RotateCcw, Lock, Info } from 'lucide-react';
+import Table from '../../../Components/Table';
+import { RotateCcw, Lock, Info, CheckCircle } from 'lucide-react';
 
 function PayrollReportsPage() {
   const { axiosPrivate } = useAuth();
-  const months = useMemo(
-    () => [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ],
+  const allMonths = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => dayjs().month(i).format('MMMM')),
     []
   );
-  const years = useMemo(() => {
-    const now = new Date().getFullYear();
-    return [now - 1, now, now + 1];
-  }, []);
+  const currentYear = new Date().getFullYear();
+  const yearOptions = useMemo(
+    () => Array.from({ length: 20 }, (_, i) => (currentYear - i).toString()),
+    [currentYear]
+  );
 
-  const [month, setMonth] = useState(months[new Date().getMonth()]);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(dayjs().format('MMMM'));
+  const [year, setYear] = useState(currentYear.toString());
   const [rows, setRows] = useState([]);
+  const tableContainerRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -73,10 +67,64 @@ function PayrollReportsPage() {
         const data = res.data.results || res.data || [];
         const mapped = data.map((p) => ({
           id: p.id,
+          raw: p,
+          profile_photo:
+            p.profile_photo ||
+            p.photo ||
+            p.employee_pic ||
+            p.employee_photo ||
+            (p.employee && p.employee.photo) ||
+            null,
+          employee_pic:
+            p.profile_photo ||
+            p.photo ||
+            p.employee_pic ||
+            p.employee_photo ||
+            (p.employee && p.employee.photo) ||
+            null,
           employee: p.employee_name,
           employeeId: p.employee_id_display,
           department: p.department,
           jobTitle: p.job_title,
+          // payroll fields
+          baseSalary:
+            typeof p.base_salary === 'string'
+              ? parseFloat(p.base_salary)
+              : p.base_salary,
+          bankAccount: p.bank_account,
+          attendance: p.worked_days || p.attended_days || 0,
+          overtime:
+            typeof p.overtime_pay === 'string'
+              ? parseFloat(p.overtime_pay)
+              : p.overtime_pay || 0,
+          // deductions excluding tax: prefer details.deductions when available
+          deductionsExclTax: (() => {
+            try {
+              const details = p.details || {};
+              const deductionItems = Array.isArray(details.deductions)
+                ? details.deductions
+                : [];
+              const nonTaxDeductions = deductionItems
+                .filter(
+                  (d) =>
+                    !String(d.label || '')
+                      .toLowerCase()
+                      .includes('tax')
+                )
+                .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+              const fallbackNonTax = parseFloat(p.total_deductions) || 0;
+              return deductionItems.length > 0
+                ? nonTaxDeductions
+                : fallbackNonTax;
+            } catch (e) {
+              return parseFloat(p.total_deductions) || 0;
+            }
+          })(),
+          adjustment: (() => {
+            const details = p.details || {};
+            return parseFloat(details.adjustmentApplied) || 0;
+          })(),
+          taxCode: p.tax_code_display || '',
           gross:
             typeof p.gross_pay === 'string'
               ? parseFloat(p.gross_pay)
@@ -88,6 +136,7 @@ function PayrollReportsPage() {
           net:
             typeof p.net_pay === 'string' ? parseFloat(p.net_pay) : p.net_pay,
           issues: p.has_issues ? p.issue_notes || 'Has issues' : '',
+          view: 'View',
         }));
         setRows(mapped);
 
@@ -115,14 +164,31 @@ function PayrollReportsPage() {
     loadReports();
   }, [axiosPrivate, month, year]);
 
+  // Page-specific DOM tweaks: enable horizontal scrolling only on the table wrapper
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+    // find the rendered <table> inside the Table component
+    const tbl = container.querySelector('table');
+    if (!tbl) return;
+
+    // ensure the container stays constrained and becomes the scrolling viewport
+    container.style.maxWidth = container.style.maxWidth || '100%';
+    container.style.overflowX = 'auto';
+    // preserve vertical flow so page doesn't become the horizontal scroller
+    container.style.overflowY = container.style.overflowY || 'visible';
+
+    // allow the table to be wider than the container so the container alone scrolls
+    tbl.style.minWidth = tbl.style.minWidth || '1200px';
+  }, [rows]);
+
   const handleRollback = async () => {
     if (!periodId || !rollbackReason.trim()) return;
     setActionLoading(true);
     try {
-      await axiosPrivate.post(
-        `/payroll/periods/${periodId}/rollback/`,
-        { reason: rollbackReason }
-      );
+      await axiosPrivate.post(`/payroll/periods/${periodId}/rollback/`, {
+        reason: rollbackReason,
+      });
       setPeriodStatus('rolled_back');
       setShowRollbackModal(false);
       setRollbackReason('');
@@ -163,73 +229,159 @@ function PayrollReportsPage() {
         <Header
           Title={'Payroll Reports'}
           subTitle={
-            <span className="flex items-center gap-2">
-              Overview for {month} {year}
-              {periodStatus && (
-                <span
-                  className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
-                    periodStatus === 'pending_approval'
-                      ? 'bg-amber-100 text-amber-700'
-                      : periodStatus === 'finalized'
-                      ? 'bg-green-100 text-green-700'
-                      : periodStatus === 'approved'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {periodStatus.replace('_', ' ')}
-                </span>
-              )}
+            <span className="flex items-center gap-3">
+              <span className="text-sm text-slate-500">Overview for</span>
+              <div className="flex items-center gap-2">
+                <div className="w-36">
+                  <Dropdown
+                    options={allMonths}
+                    selectedLabel={month}
+                    onChange={(val) => setMonth(val)}
+                    placeholder={month}
+                    padding={'py-2'}
+                    text={'text-xs font-semibold'}
+                  />
+                </div>
+                <div className="w-24">
+                  <Dropdown
+                    options={yearOptions}
+                    selectedLabel={year}
+                    onChange={(val) => setYear(val)}
+                    placeholder={year}
+                    padding={'py-2'}
+                    text={'text-xs font-semibold'}
+                  />
+                </div>
+                {periodStatus && (
+                  <span
+                    className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                      periodStatus === 'pending_approval'
+                        ? 'bg-amber-100 text-amber-700'
+                        : periodStatus === 'finalized'
+                        ? 'bg-green-100 text-green-700'
+                        : periodStatus === 'approved'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {periodStatus.replace('_', ' ')}
+                  </span>
+                )}
+              </div>
             </span>
           }
         />
 
         {/* ACTION BUTTONS FOR HR MANAGER */}
-        {(periodStatus === 'pending_approval' || periodStatus === 'approved') && (
+        {(periodStatus === 'pending_approval' ||
+          periodStatus === 'approved') && (
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowRollbackModal(true)}
-              disabled={actionLoading}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
-            >
-              <RotateCcw size={16} /> Rollback
-            </button>
-            <button
-              onClick={handleFinalize}
-              disabled={actionLoading}
-              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 shadow disabled:opacity-50"
-            >
-              <Lock size={16} /> Finalize
-            </button>
+            {periodStatus === 'pending_approval' && (
+              <>
+                <button
+                  onClick={() => setShowRollbackModal(true)}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                >
+                  <RotateCcw size={16} /> Rollback
+                </button>
+
+                <button
+                  onClick={async () => {
+                    if (!periodId) return;
+                    if (!window.confirm('Approve this payroll?')) return;
+                    setActionLoading(true);
+                    try {
+                      await axiosPrivate.post(
+                        `/payroll/periods/${periodId}/approve/`,
+                        { notes: '' }
+                      );
+                      setPeriodStatus('approved');
+                    } catch (e) {
+                      alert(
+                        'Approve failed: ' +
+                          (e.response?.data?.error || e.message)
+                      );
+                    } finally {
+                      setActionLoading(false);
+                    }
+                  }}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow disabled:opacity-50"
+                >
+                  <CheckCircle size={16} /> Approve
+                </button>
+              </>
+            )}
+
+            {periodStatus === 'approved' && (
+              <>
+                <button
+                  onClick={() => setShowRollbackModal(true)}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                >
+                  <RotateCcw size={16} /> Rollback
+                </button>
+                <button
+                  onClick={handleFinalize}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-green-700 rounded-lg hover:bg-green-800 shadow disabled:opacity-50"
+                >
+                  <Lock size={16} /> Finalize
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {periodStatus === 'finalized' && (
+          <div className="flex items-center gap-2">
+            <ExportTable
+              fileName={`Payroll_${month}_${year}`}
+              keys={[
+                ['employee_pic', 'employee', 'employeeId'],
+                ['employeeId'],
+                ['department'],
+                ['jobTitle'],
+                ['baseSalary'],
+                ['bankAccount'],
+                ['attendance'],
+                ['overtime'],
+                ['deductionsExclTax'],
+                ['adjustment'],
+                ['taxCode'],
+                ['tax'],
+                ['gross'],
+                ['net'],
+                ['issues'],
+              ]}
+              bodyStructure={[
+                3, 1, 1, 1, 72, 1, 73, 72, 74, 75, 1, 77, 77, 77, 1,
+              ]}
+              title={[
+                'Employee',
+                'Employee ID',
+                'Department',
+                'Job Title',
+                'Base Salary',
+                'Bank Account',
+                'Attendance',
+                'Overtime',
+                'Deductions (excl tax)',
+                'Adj (Carryover)',
+                'Tax Code',
+                'Tax Amt',
+                'Gross',
+                'Net',
+                'Issues',
+              ]}
+              data={rows}
+            />
           </div>
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3 items-center">
-        <select
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="border px-2 py-1 rounded"
-        >
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
-        <select
-          value={year}
-          onChange={(e) => setYear(parseInt(e.target.value))}
-          className="border px-2 py-1 rounded"
-        >
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-      </div>
+      {/* Filters are in header now */}
 
       {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -265,8 +417,11 @@ function PayrollReportsPage() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded shadow overflow-x-auto">
+      {/* Table (shared component) */}
+      <div
+        ref={tableContainerRef}
+        className="bg-white rounded shadow max-w-full overflow-x-auto"
+      >
         {loading ? (
           <div className="p-10 text-center text-slate-400">Loading…</div>
         ) : error ? (
@@ -276,46 +431,53 @@ function PayrollReportsPage() {
             No payslips for selected period.
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left border-b">
-                <th className="p-3">Employee</th>
-                <th className="p-3">Employee ID</th>
-                <th className="p-3">Department</th>
-                <th className="p-3">Job Title</th>
-                <th className="p-3">Gross</th>
-                <th className="p-3">Tax</th>
-                <th className="p-3">Net</th>
-                <th className="p-3">Issues</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-b hover:bg-gray-50">
-                  <td className="p-3">{r.employee}</td>
-                  <td className="p-3">{r.employeeId}</td>
-                  <td className="p-3">{r.department || '-'}</td>
-                  <td className="p-3">{r.jobTitle || '-'}</td>
-                  <td className="p-3">
-                    {Number(r.gross).toLocaleString(undefined, {
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="p-3">
-                    {Number(r.tax).toLocaleString(undefined, {
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="p-3 font-semibold">
-                    {Number(r.net).toLocaleString(undefined, {
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="p-3">{r.issues}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table
+            D1={periodStatus}
+            Data={rows}
+            Structure={[
+              3, 1, 1, 1, 72, 1, 73, 72, 74, 75, 1, 77, 77, 77, 1, 63,
+            ]}
+            titleStructure={Array(16).fill(11)}
+            ke={[
+              ['employee_pic', 'employee', 'employeeId'],
+              ['employeeId'],
+              ['department'],
+              ['jobTitle'],
+              ['baseSalary'],
+              ['bankAccount'],
+              ['attendance'],
+              ['overtime'],
+              ['deductionsExclTax'],
+              ['adjustment'],
+              ['taxCode'],
+              ['tax'],
+              ['gross'],
+              ['net'],
+              ['issues'],
+              ['view'],
+            ]}
+            title={[
+              'Employee',
+              'Employee ID',
+              'Department',
+              'Job Title',
+              'Base Salary',
+              'Bank Account',
+              'Attendance',
+              'Overtime',
+              'Deductions (excl tax)',
+              'Adj (Carryover)',
+              'Tax Code',
+              'Tax Amt',
+              'Gross',
+              'Net',
+              'Issues',
+              'Action',
+            ]}
+            pages={10}
+            nickname={'View Payslip'}
+            components={EmployeePayslipTemplate}
+          />
         )}
       </div>
 
