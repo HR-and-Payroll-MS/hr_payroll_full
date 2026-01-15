@@ -93,7 +93,6 @@ import MyOvertimePage from './Pages/Employee/MyOvertimePage';
 import MyDepartment from './Pages/Employee/MyDepartment';
 import MyPayslipsPage from './Pages/Employee/MyPayslipsPage';
 
-
 // import { NotificationBell, NotificationCenterPage, SendNotificationPage } from './Pages/HR_Manager/Notifications/MockData';
 
 export const UserContext = createContext();
@@ -215,7 +214,6 @@ function App() {
             <Route path="tax_code" element={<TaxCode />} />
             <Route path="efficiency_report" element={<EfficiencyReport />} />
 
-
             <Route path="Addemployee" element={<AddEmployee />} />
             <Route path="PromoteEmployee" element={<PromoteEmployee />} />
             <Route path="AssignDepartment" element={<AssignToDepartment />} />
@@ -321,7 +319,10 @@ function App() {
             <Route path="myattendance" element={<MyAttendance />} />
             <Route path="myovertime" element={<MyOvertimePage />} />
             <Route path="clock_in" element={<ClockIn />} />
-            <Route path="Efficiency_Result" element={<EmployeeEfficiencyResult />} />
+            <Route
+              path="Efficiency_Result"
+              element={<EmployeeEfficiencyResult />}
+            />
             <Route path="my-department" element={<MyDepartment />} />
             <Route path="my-payslips" element={<MyPayslipsPage />} />
             <Route path="policies" element={<Policy />} />
@@ -342,10 +343,22 @@ function App() {
             <Route path="Approve_Reject" element={<LeaveApprovalPage />} />
             <Route path="Efficiency_Report" element={<EmployeeEfficiency />} />
             <Route path="Request" element={<LeaveRequestForEmployees />} />
-            <Route path="OverTimeInitiation" element={<OvertimeInitiationPage />} />
-            <Route path="efficiency_fill_form/:id" element={<EfficiencyFillForm />} />
-            <Route path="Employee_Attendance" element={<EmployeeAttendance />} />
-            <Route path="Employee_Attendance/:id" element={<EmployeeAttendanceDetail />} />
+            <Route
+              path="OverTimeInitiation"
+              element={<OvertimeInitiationPage />}
+            />
+            <Route
+              path="efficiency_fill_form/:id"
+              element={<EfficiencyFillForm />}
+            />
+            <Route
+              path="Employee_Attendance"
+              element={<EmployeeAttendance />}
+            />
+            <Route
+              path="Employee_Attendance/:id"
+              element={<EmployeeAttendanceDetail />}
+            />
             <Route path="Employee_Directory" element={<EmployeeDirectory />} />
             <Route path="users/:id" element={<ViewEmployeeDetail />} />
             <Route path="View_Employee" element={<ViewEmployee />} />
