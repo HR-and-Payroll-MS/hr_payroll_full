@@ -123,7 +123,8 @@ def sync_user_groups(sender, instance, created, **kwargs):
         return
 
     user = instance.user_account
-    job_title = (instance.job_title or "").upper()
+    ji = getattr(instance, 'job_info', None)
+    job_title = (getattr(ji, 'job_title', None) or "").upper()
     
     # Define group mappings
     group_names = set()
@@ -160,7 +161,7 @@ def sync_user_groups(sender, instance, created, **kwargs):
         # For regular users, enforce the specific groups for the title
         user.groups.set(target_groups)
     
-    print(f"SIGNAL: Synced groups for {user.username} based on job title '{instance.job_title}': {list(group_names)}")
+    print(f"SIGNAL: Synced groups for {user.username} based on job title '{job_title}': {list(group_names)}")
 
 
 @receiver(post_save, sender=Employee)
@@ -168,14 +169,16 @@ def backfill_attendance_on_create(sender, instance, created, **kwargs):
     """
     When an employee is created with a past join date, fill past days as 'Absent'.
     """
-    if not created or not instance.join_date:
+    ji = getattr(instance, 'job_info', None)
+    join_date = getattr(ji, 'join_date', None)
+    if not created or not join_date:
         return
 
     from apps.attendance.models import Attendance
     from datetime import date, timedelta
     
     today = date.today()
-    start_date = instance.join_date
+    start_date = join_date
     
     # Only backfill if join_date is in the past
     if start_date < today:
@@ -199,12 +202,13 @@ def track_employee_changes(sender, instance, **kwargs):
     """
     if instance.pk:
         try:
-            old_instance = Employee.objects.get(pk=instance.pk)
-            instance._old_department = old_instance.department
-            instance._old_position = old_instance.position
-            instance._old_job_title = old_instance.job_title
-            instance._old_line_manager = old_instance.line_manager
-            instance._old_join_date = old_instance.join_date
+            old_instance = Employee.objects.select_related('job_info', 'job_info__department').get(pk=instance.pk)
+            old_ji = getattr(old_instance, 'job_info', None)
+            instance._old_department = getattr(old_ji, 'department', None)
+            instance._old_position = getattr(old_ji, 'position', None)
+            instance._old_job_title = getattr(old_ji, 'job_title', None)
+            instance._old_line_manager = getattr(old_ji, 'line_manager', None)
+            instance._old_join_date = getattr(old_ji, 'join_date', None)
         except Employee.DoesNotExist:
             pass
 
@@ -217,9 +221,15 @@ def notify_employee_changes(sender, instance, created, **kwargs):
     if created:
         return
 
+    ji = getattr(instance, 'job_info', None)
+    current_dept = getattr(ji, 'department', None)
+    current_position = getattr(ji, 'position', None)
+    current_line_manager = getattr(ji, 'line_manager', None)
+    current_join_date = getattr(ji, 'join_date', None)
+
     # Check Department Change
-    if hasattr(instance, '_old_department') and instance._old_department != instance.department:
-        new_dept = instance.department
+    if hasattr(instance, '_old_department') and instance._old_department != current_dept:
+        new_dept = current_dept
         new_dept_name = new_dept.name if new_dept else "No Department"
         
         # Notify Employee
@@ -244,19 +254,19 @@ def notify_employee_changes(sender, instance, created, **kwargs):
             )
 
     # Check Position Change
-    if hasattr(instance, '_old_position') and instance._old_position != instance.position:
+    if hasattr(instance, '_old_position') and instance._old_position != current_position:
         Notification.objects.create(
             recipient=instance,
             sender=None,
             title="Position Update",
-            message=f"Your position has been updated to {instance.position}.",
+            message=f"Your position has been updated to {current_position}.",
             notification_type='promotion',
             link=f"/my-profile"
         )
 
     # Check Line Manager Change
-    if hasattr(instance, '_old_line_manager') and instance._old_line_manager != instance.line_manager:
-        new_manager = instance.line_manager
+    if hasattr(instance, '_old_line_manager') and instance._old_line_manager != current_line_manager:
+        new_manager = current_line_manager
         manager_name = f"{new_manager.first_name} {new_manager.last_name}" if new_manager else "No Manager"
         
         # 1. Notify Employee
@@ -281,12 +291,12 @@ def notify_employee_changes(sender, instance, created, **kwargs):
             )
 
     # Check Join Date Change
-    if hasattr(instance, '_old_join_date') and instance._old_join_date != instance.join_date:
+    if hasattr(instance, '_old_join_date') and instance._old_join_date != current_join_date:
         from apps.attendance.models import Attendance
         from datetime import timedelta, date
         
         old_date = instance._old_join_date
-        new_date = instance.join_date
+        new_date = current_join_date
         
         if not new_date:
             return

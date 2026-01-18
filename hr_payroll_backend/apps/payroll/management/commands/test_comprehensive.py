@@ -1,8 +1,13 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
+from django.db.models.signals import post_save
 from datetime import date
 from decimal import Decimal
+from apps.employees import signals as employee_signals
 from apps.employees.models import Employee
+from apps.users.models import EmployeeGeneralInfo
+from apps.company.models import EmployeeJobInfo
+from apps.payroll.models import EmployeePayrollInfo
 from apps.payroll.models import PayrollPeriod, TaxCode, TaxCodeVersion, TaxBracket, Payslip
 from apps.policies.models import Policy
 from apps.notifications.models import Notification
@@ -20,8 +25,10 @@ class Command(BaseCommand):
 
         # --- 0. CLEANUP ---
         self.stdout.write("[Step 0] Cleaning up old test data...")
-        User.objects.filter(email__in=['admin@test.com', 'full@test.com', 'mid@test.com']).delete()
-        Employee.objects.filter(email__in=['admin@test.com', 'full@test.com', 'mid@test.com']).delete()
+        emails = ['admin@test.com', 'full@test.com', 'mid@test.com']
+        User.objects.filter(email__in=emails).delete()
+        emp_ids = list(EmployeeGeneralInfo.objects.filter(email__in=emails).values_list('employee_id', flat=True))
+        Employee.objects.filter(id__in=emp_ids).delete()
         TaxCode.objects.filter(code__in=['TAX_A', 'TAX_B', 'TAX_C']).delete()
         Policy.objects.filter(section='attendancePolicy').delete()
 
@@ -30,63 +37,54 @@ class Command(BaseCommand):
         
         # Create Admin/HR User
         admin_user, _ = User.objects.get_or_create(username='admin_test', defaults={'email': 'admin@test.com'})
-        
-        # Create Admin Employee
-        admin_employee, created = Employee.objects.get_or_create(
-            email='admin@test.com',
-            defaults={
-                'first_name': 'Admin', 'last_name': 'Test', 
-                'salary': 10000,
-                'join_date': date(2025, 1, 1),
-                'job_title': 'HR Manager'
-            }
-        )
-        
-        # Link Admin User to Employee (OneToOne on User)
+
+        # Disconnect signals to avoid legacy field usage during creation
+        post_save.disconnect(employee_signals.create_user_for_employee, sender=Employee)
+        post_save.disconnect(employee_signals.sync_user_groups, sender=Employee)
+        post_save.disconnect(employee_signals.create_employee_for_user, sender=User)
+
+        # Create Admin Employee (partitioned)
+        admin_employee = Employee.objects.create(first_name='Admin', last_name='Test')
+        EmployeeGeneralInfo.objects.create(employee=admin_employee, email='admin@test.com')
+        EmployeeJobInfo.objects.create(employee=admin_employee, employee_code='ADMIN001', job_title='HR Manager', employment_type='Full-Time', join_date=date(2025, 1, 1))
+        EmployeePayrollInfo.objects.create(employee=admin_employee, status='Active', salary=Decimal('10000.00'))
+        admin_employee.salary = Decimal('10000.00')
+        admin_employee.join_date = date(2025, 1, 1)
+        admin_employee.job_title = 'HR Manager'
+
         try:
-            if not hasattr(admin_user, 'employee'):
-                admin_user.employee = admin_employee
-                admin_user.save()
-                self.stdout.write("  Linked Admin User to Employee")
-            else:
-                 # Check if linked to correct employee
-                 if admin_user.employee != admin_employee:
-                     self.stdout.write("  ! Admin User linked to different employee, relinking...")
-                     admin_user.employee = admin_employee
-                     admin_user.save()
+            admin_user.employee = admin_employee
+            admin_user.save()
+            self.stdout.write("  Linked Admin User to Employee")
         except Exception as e:
-             self.stdout.write(f"  Warning linking user: {e}")
+            self.stdout.write(f"  Warning linking user: {e}")
 
         # Create Test Employees
         # Emp 1: Full Month
-        emp_full, _ = Employee.objects.get_or_create(
-            email='full@test.com',
-            defaults={
-                'first_name': 'Full', 'last_name': 'Month', 
-                'salary': 50000, 
-                'join_date': date(2025, 1, 1),
-                'job_title': 'Manager'
-            }
-        )
+        emp_full = Employee.objects.create(first_name='Full', last_name='Month')
+        EmployeeGeneralInfo.objects.create(employee=emp_full, email='full@test.com')
+        EmployeeJobInfo.objects.create(employee=emp_full, employee_code='FULL001', job_title='Manager', employment_type='Full-Time', join_date=date(2025, 1, 1))
+        EmployeePayrollInfo.objects.create(employee=emp_full, status='Active', salary=Decimal('50000.00'))
+        emp_full.salary = Decimal('50000.00')
+        emp_full.join_date = date(2025, 1, 1)
+        emp_full.job_title = 'Manager'
         
         # Emp 2: Mid Month Joiner (16th Jan)
-        emp_mid, _ = Employee.objects.get_or_create(
-            email='mid@test.com',
-            defaults={
-                'first_name': 'Mid', 'last_name': 'Month', 
-                'salary': 50000, 
-                'join_date': date(2025, 1, 16), # Should get ~50% salary
-                'job_title': 'Staff'
-            }
-        )
+        emp_mid = Employee.objects.create(first_name='Mid', last_name='Month')
+        EmployeeGeneralInfo.objects.create(employee=emp_mid, email='mid@test.com')
+        EmployeeJobInfo.objects.create(employee=emp_mid, employee_code='MID001', job_title='Staff', employment_type='Full-Time', join_date=date(2025, 1, 16))
+        EmployeePayrollInfo.objects.create(employee=emp_mid, status='Active', salary=Decimal('50000.00'))
+        emp_mid.salary = Decimal('50000.00')
+        emp_mid.join_date = date(2025, 1, 16)
+        emp_mid.job_title = 'Staff'
         
         # Setup users for them so they get notifications (optional but good for testing)
         user_full, _ = User.objects.get_or_create(username='user_full', defaults={'email': 'full@test.com'})
         try:
-            if not hasattr(user_full, 'employee'):
-                user_full.employee = emp_full
-                user_full.save()
-        except: pass
+            user_full.employee = emp_full
+            user_full.save()
+        except Exception:
+            pass
 
         # Create Tax Codes
         # Tax A: Flat 10%
@@ -103,6 +101,11 @@ class Command(BaseCommand):
         tax_c, _ = TaxCode.objects.get_or_create(name='Tax C', defaults={'code': 'TAX_C', 'is_active': False})
 
         self.stdout.write("✔ Data Setup Complete")
+
+        # Reconnect signals after setup
+        post_save.connect(employee_signals.create_user_for_employee, sender=Employee)
+        post_save.connect(employee_signals.sync_user_groups, sender=Employee)
+        post_save.connect(employee_signals.create_employee_for_user, sender=User)
 
         # --- 2. TEST NOTIFICATIONS ---
         self.stdout.write("\n[Step 2] Testing Notifications on Change...")

@@ -9,8 +9,8 @@ def notify_policy_change(sender, instance, created, **kwargs):
     """Notify all employees when a policy is updated."""
     try:
         from apps.employees.models import Employee
-        # Get all active employees
-        employees = Employee.objects.filter(status='Active')
+        # Get all active employees via payroll partition
+        employees = Employee.objects.filter(payroll_info__status='Active')
         
         action = "Created" if created else "Updated"
         title = f"Policy Update: {instance.section}"
@@ -41,9 +41,13 @@ def notify_policy_change(sender, instance, created, **kwargs):
                 except Exception:
                     pass # Don't block because of one bad record
             
-    except Exception as e:
+    except Exception:
         import traceback
-        with open(r'f:\E\SeniorX\hr_payroll_backend\policy_signal_error.log', 'a') as f:
-            from django.utils import timezone
-            f.write(f"\n--- SIGNAL ERROR {timezone.now()} ---\n")
-            f.write(traceback.format_exc())
+        from django.utils import timezone
+        try:
+            with open('policy_signal_error.log', 'a', encoding='utf-8') as f:
+                f.write(f"\n--- SIGNAL ERROR {timezone.now()} ---\n")
+                f.write(traceback.format_exc())
+        except Exception:
+            # Last-resort: swallow logging failures to avoid breaking saves
+            pass

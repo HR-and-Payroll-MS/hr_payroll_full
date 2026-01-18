@@ -20,4 +20,5 @@ class DepartmentSerializer(serializers.ModelSerializer):
         return obj.manager.fullname if obj.manager else None
     
     def get_employee_count(self, obj):
-        return obj.employees.count()
+        # Count employees via job info partition
+        return obj.job_infos.count()

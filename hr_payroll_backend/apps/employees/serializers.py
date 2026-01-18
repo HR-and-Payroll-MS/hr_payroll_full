@@ -2,10 +2,21 @@
 Serializers for Employees app.
 Structured to match frontend expectations with nested general/job/payroll format.
 """
+from decimal import Decimal
 from rest_framework import serializers
 from apps.attendance.serializers import WorkScheduleSerializer
 from .models import Employee, EmployeeDocument
-from apps.attendance.models import WorkSchedule
+from apps.users.models import (
+    EmployeeGeneralInfo,
+    EmployeeAddressInfo,
+    EmployeeEmergencyInfo,
+)
+from apps.company.models import (
+    EmployeeJobInfo,
+    EmployeeContractInfo,
+)
+from apps.payroll.models import EmployeePayrollInfo
+from apps.attendance.models import WorkSchedule, EmployeeWorkScheduleLink
 from apps.departments.models import Department
 from apps.users.models import User
 
@@ -30,11 +41,12 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
         return obj.uploaded_by.fullname if obj.uploaded_by else None
 
     def get_uploaded_by_photo(self, obj):
-        if obj.uploaded_by and obj.uploaded_by.photo:
+        if obj.uploaded_by and obj.uploaded_by.photo and getattr(obj.uploaded_by.photo, 'name', None):
             request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.uploaded_by.photo.url)
-            return obj.uploaded_by.photo.url
+            try:
+                return request.build_absolute_uri(obj.uploaded_by.photo.url) if request else obj.uploaded_by.photo.url
+            except Exception:
+                return None
         return None
 
     def get_uploaded_by_job_title(self, obj):
@@ -42,106 +54,169 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
 
 
 class EmployeeGeneralSerializer(serializers.Serializer):
-    """Nested serializer for general information - READ ONLY for output."""
-    firstname = serializers.CharField(source='first_name')
-    lastname = serializers.CharField(source='last_name')
-    fullname = serializers.CharField(read_only=True)
-    gender = serializers.CharField()
-    dateofbirth = serializers.DateField(source='date_of_birth')
-    maritalstatus = serializers.CharField(source='marital_status')
-    nationality = serializers.CharField()
-    personaltaxid = serializers.CharField(source='personal_tax_id')
-    socialinsurance = serializers.CharField(source='social_insurance')
-    healthinsurance = serializers.CharField(source='health_care')
-    phonenumber = serializers.CharField(source='phone')
-    emailaddress = serializers.CharField(source='email', required=False, allow_blank=True)
-    photo = serializers.ImageField()
-    profilepicture = serializers.ImageField(source='photo')
-    
+    """Read-only general + address + emergency info built from partition tables."""
+    firstname = serializers.CharField()
+    lastname = serializers.CharField()
+    fullname = serializers.CharField()
+    gender = serializers.CharField(required=False)
+    dateofbirth = serializers.DateField(required=False)
+    maritalstatus = serializers.CharField(required=False)
+    nationality = serializers.CharField(required=False)
+    personaltaxid = serializers.CharField(required=False)
+    socialinsurance = serializers.CharField(required=False)
+    healthinsurance = serializers.CharField(required=False)
+    phonenumber = serializers.CharField(required=False)
+    emailaddress = serializers.CharField(required=False)
+    photo = serializers.ImageField(required=False)
+    profilepicture = serializers.ImageField(required=False)
     # Address
-    primaryaddress = serializers.CharField(source='primary_address')
-    country = serializers.CharField()
-    state = serializers.CharField()
-    city = serializers.CharField()
-    postcode = serializers.CharField()
-    
-    # Emergency contact
-    emefullname = serializers.CharField(source='emergency_fullname')
-    emephonenumber = serializers.CharField(source='emergency_phone')
-    emestate = serializers.CharField(source='emergency_state')
-    emecity = serializers.CharField(source='emergency_city')
-    emepostcode = serializers.CharField(source='emergency_postcode')
+    primaryaddress = serializers.CharField(required=False)
+    country = serializers.CharField(required=False)
+    state = serializers.CharField(required=False)
+    city = serializers.CharField(required=False)
+    postcode = serializers.CharField(required=False)
+    # Emergency
+    emefullname = serializers.CharField(required=False)
+    emephonenumber = serializers.CharField(required=False)
+    emestate = serializers.CharField(required=False)
+    emecity = serializers.CharField(required=False)
+    emepostcode = serializers.CharField(required=False)
+
+    def to_representation(self, obj: Employee):
+        request = self.context.get('request') if hasattr(self, 'context') else None
+        g = getattr(obj, 'general_info', None)
+        a = getattr(obj, 'address_info', None)
+        e = getattr(obj, 'emergency_info', None)
+        # Safe photo URL builder
+        photo_url = None
+        if obj.photo and getattr(obj.photo, 'name', None):
+            try:
+                photo_url = request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
+            except Exception:
+                photo_url = None
+        return {
+            'firstname': obj.first_name,
+            'lastname': obj.last_name,
+            'fullname': obj.fullname,
+            'gender': getattr(g, 'gender', None),
+            'dateofbirth': getattr(g, 'date_of_birth', None),
+            'maritalstatus': getattr(g, 'marital_status', None),
+            'nationality': getattr(g, 'nationality', None),
+            'personaltaxid': getattr(g, 'personal_tax_id', None),
+            'socialinsurance': getattr(g, 'social_insurance', None),
+            'healthinsurance': getattr(g, 'health_care', None),
+            'phonenumber': getattr(g, 'phone', None),
+            'emailaddress': getattr(g, 'email', None),
+            'photo': photo_url,
+            'profilepicture': photo_url,
+            'primaryaddress': getattr(a, 'primary_address', None),
+            'country': getattr(a, 'country', None),
+            'state': getattr(a, 'state', None),
+            'city': getattr(a, 'city', None),
+            'postcode': getattr(a, 'postcode', None),
+            'emefullname': getattr(e, 'fullname', None),
+            'emephonenumber': getattr(e, 'phone', None),
+            'emestate': getattr(e, 'state', None),
+            'emecity': getattr(e, 'city', None),
+            'emepostcode': getattr(e, 'postcode', None),
+        }
 
 
 class EmployeeJobSerializer(serializers.Serializer):
-    """Nested serializer for job information - READ ONLY for output."""
-    employeeid = serializers.CharField(source='employee_id')
-    jobtitle = serializers.CharField(source='job_title')
-    positiontype = serializers.CharField(source='position')
-    department = serializers.SerializerMethodField()
-    linemanager = serializers.SerializerMethodField()
-    employmenttype = serializers.CharField(source='employment_type')
-    joindate = serializers.DateField(source='join_date')
-    joindate = serializers.DateField(source='join_date')
-    serviceyear = serializers.IntegerField(source='service_years')
-    workschedule = serializers.SerializerMethodField()
-    workschedule_id = serializers.IntegerField(source='work_schedule_id', read_only=True)
-    contractnumber = serializers.CharField(source='contract_number')
-    contractname = serializers.CharField(source='contract_name')
-    contracttype = serializers.CharField(source='contract_type')
-    startdate = serializers.DateField(source='contract_start_date')
-    enddate = serializers.DateField(source='contract_end_date')
-    
-    def get_department(self, obj):
-        return obj.department.name if obj.department else None
-    
-    def get_linemanager(self, obj):
-        data = {
-            "name": None,
-            "photo": None,
-            "id": None
-        }
-        
-        request = self.context.get('request')
-        
-        if obj.line_manager:
-            data["name"] = obj.line_manager.fullname
-            data["id"] = obj.line_manager.id
-            if obj.line_manager.photo:
-                if request:
-                    data["photo"] = request.build_absolute_uri(obj.line_manager.photo.url)
-                else:
-                    data["photo"] = obj.line_manager.photo.url
-            return data
-        
-        # If no line manager, check if they are the department manager themselves
-        if obj.department and obj.department.manager == obj:
-            data["name"] = f"{obj.fullname} (Self)"
-            data["id"] = obj.id
-            if obj.photo:
-                 if request:
-                     data["photo"] = request.build_absolute_uri(obj.photo.url)
-                 else:
-                     data["photo"] = obj.photo.url
-            return data
-            
-        return None
+    """Read-only job + contract + workschedule using company/attendance partitions."""
+    employeeid = serializers.CharField(required=False)
+    jobtitle = serializers.CharField(required=False)
+    positiontype = serializers.CharField(required=False)
+    department = serializers.CharField(required=False)
+    linemanager = serializers.DictField(required=False)
+    employmenttype = serializers.CharField(required=False)
+    joindate = serializers.DateField(required=False)
+    serviceyear = serializers.IntegerField(required=False)
+    workschedule = serializers.DictField(required=False)
+    workschedule_id = serializers.IntegerField(required=False)
+    contractnumber = serializers.CharField(required=False)
+    contractname = serializers.CharField(required=False)
+    contracttype = serializers.CharField(required=False)
+    startdate = serializers.DateField(required=False)
+    enddate = serializers.DateField(required=False)
 
-    def get_workschedule(self, obj):
-        if obj.work_schedule:
-             return WorkScheduleSerializer(obj.work_schedule).data
-        return None
+    def to_representation(self, obj: Employee):
+        request = self.context.get('request')
+        job = getattr(obj, 'job_info', None)
+        contract = getattr(obj, 'contract_info', None)
+
+        # Department and line manager
+        dep = getattr(job, 'department', None)
+        lm = getattr(job, 'line_manager', None)
+
+        department_name = dep.name if dep else None
+        line_manager_block = None
+        if lm:
+            lm_photo = None
+            if lm.photo and getattr(lm.photo, 'name', None):
+                try:
+                    lm_photo = request.build_absolute_uri(lm.photo.url) if request else lm.photo.url
+                except Exception:
+                    lm_photo = None
+            line_manager_block = {"name": lm.fullname, "photo": lm_photo, "id": lm.id}
+        elif dep and dep.manager == obj:
+            lm_photo = None
+            if obj.photo and getattr(obj.photo, 'name', None):
+                try:
+                    lm_photo = request.build_absolute_uri(obj.photo.url) if request else obj.photo.url
+                except Exception:
+                    lm_photo = None
+            line_manager_block = {"name": f"{obj.fullname} (Self)", "photo": lm_photo, "id": obj.id}
+
+        # Work schedule
+        workschedule_data = None
+        workschedule_id = None
+        link = getattr(obj, 'work_schedule_link', None)
+        ws = getattr(link, 'work_schedule', None)
+        if ws:
+            workschedule_data = WorkScheduleSerializer(ws).data
+            workschedule_id = ws.id
+
+        return {
+            'employeeid': (job.employee_code if job else '') or '',
+            'jobtitle': (job.job_title if job else '') or '',
+            'positiontype': (job.position if job else '') or '',
+            'department': department_name,
+            'linemanager': line_manager_block,
+            'employmenttype': (job.employment_type if job else '') or '',
+            'joindate': getattr(job, 'join_date', None),
+            'serviceyear': (job.service_years if job else 0) or 0,
+            'workschedule': workschedule_data,
+            'workschedule_id': workschedule_id,
+            'contractnumber': (contract.contract_number if contract else '') or '',
+            'contractname': (contract.contract_name if contract else '') or '',
+            'contracttype': (contract.contract_type if contract else '') or '',
+            'startdate': getattr(contract, 'contract_start_date', None),
+            'enddate': getattr(contract, 'contract_end_date', None),
+        }
 
 
 class EmployeePayrollSerializer(serializers.Serializer):
-    """Nested serializer for payroll information - READ ONLY for output."""
-    employeestatus = serializers.CharField(source='status')
+    """Read-only payroll using payroll partition."""
+    employeestatus = serializers.CharField()
     salary = serializers.DecimalField(max_digits=12, decimal_places=2)
-    lastworkingdate = serializers.DateField(source='last_working_date')
+    lastworkingdate = serializers.DateField(required=False)
     offset = serializers.DecimalField(max_digits=12, decimal_places=2)
-    oneoff = serializers.DecimalField(source='one_off', max_digits=12, decimal_places=2)
-    bankname = serializers.CharField(source='bank_name')
-    bankaccount = serializers.CharField(source='bank_account')
+    oneoff = serializers.DecimalField(max_digits=12, decimal_places=2)
+    bankname = serializers.CharField(required=False)
+    bankaccount = serializers.CharField(required=False)
+
+    def to_representation(self, obj: Employee):
+        p = getattr(obj, 'payroll_info', None)
+        return {
+            'employeestatus': (p.status if p else None),
+            'salary': (p.salary if p else Decimal('0')),
+            'lastworkingdate': getattr(p, 'last_working_date', None),
+            'offset': (p.offset if p else Decimal('0')),
+            'oneoff': (p.one_off if p else Decimal('0')),
+            'bankname': getattr(p, 'bank_name', None),
+            'bankaccount': getattr(p, 'bank_account', None),
+        }
 
 
 class EmployeeListSerializer(serializers.ModelSerializer):
@@ -217,21 +292,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = [
-            # General in flat format (for flexibility)
-            'first_name', 'last_name', 'gender', 'date_of_birth', 'marital_status',
-            'nationality', 'personal_tax_id', 'social_insurance', 'health_care',
-            'phone', 'email', 'photo',
-            'primary_address', 'country', 'state', 'city', 'postcode',
-            'emergency_fullname', 'emergency_phone', 'emergency_state', 
-            'emergency_city', 'emergency_postcode',
-            # Job
-            'employee_id', 'job_title', 'position', 'department', 'line_manager',
-            'employment_type', 'join_date', 'service_years', 'work_schedule',
-            'contract_number', 'contract_name', 'contract_type',
-            'contract_start_date', 'contract_end_date',
-            # Payroll
-            'status', 'salary', 'last_working_date', 'offset', 'one_off',
-            'bank_name', 'bank_account',
+            'first_name', 'last_name', 'photo',
             # Documents
             'documents',
             # Nested update fields
@@ -239,222 +300,196 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         ]
     
     def to_internal_value(self, data):
-        """
-        Pre-process data to flatten nested structures (general, job, payroll)
-        into model fields before validation.
-        """
-        # IMPORTANT: Preserve files BEFORE converting QueryDict to dict
-        # QueryDict.dict() loses multi-value keys (like multiple files)
+        """Preserve files while letting DRF parse nested dicts as-is."""
         original_files = None
         if hasattr(data, 'getlist'):
-            # This is a QueryDict - get files properly
             original_files = data.getlist('documents')
-        
-        # Ensure data is a mutable dictionary (handle QueryDict)
         if hasattr(data, 'dict'):
             data = data.dict()
-        elif not isinstance(data, dict):
-            # If not a dict, let super handle or error
-            return super().to_internal_value(data)
-        else:
+        elif isinstance(data, dict):
             data = data.copy()
-        
-        # Restore files if they were in the original QueryDict
         if original_files:
             data['documents'] = original_files
-
-        # Fields that should be None instead of empty string
-        date_fields = ['date_of_birth', 'join_date', 'last_working_date', 
-                       'contract_start_date', 'contract_end_date']
-        numeric_fields = ['service_years', 'salary', 'offset', 'one_off', 
-                          'line_manager', 'department', 'work_schedule']
-        # Text fields that can be empty strings but should be None in DB
-        optional_text_fields = ['email', 'phone', 'gender', 'marital_status', 
-                                'nationality', 'personal_tax_id', 'social_insurance',
-                                'health_care', 'primary_address', 'country', 'state',
-                                'city', 'postcode', 'emergency_fullname', 'emergency_phone',
-                                'emergency_state', 'emergency_city', 'emergency_postcode',
-                                'job_title', 'position', 'employment_type', 'contract_number',
-                                'contract_name', 'contract_type', 'status', 'bank_name', 'bank_account']
-        
-        # Helper to clean empty strings to None for specific field types
-        def clean_empty(value):
-            if value == '' or value is None:
-                return None
-            return value
-        
-        # Handle documents: If it's the read-format dict, remove it.
-        # We only want list of files for uploads.
+        # Remove read-format documents dict
         if 'documents' in data and isinstance(data['documents'], dict):
-             data.pop('documents')
-        # Remove empty documents list to avoid validation errors
+            data.pop('documents')
         if 'documents' in data and data['documents'] in [None, '', []]:
-             data.pop('documents')
-
-        # General
-        general = data.get('general', {})
-        if isinstance(general, dict):
-             if 'firstname' in general: data['first_name'] = general['firstname']
-             if 'lastname' in general: data['last_name'] = general['lastname']
-             if 'gender' in general: data['gender'] = general['gender']
-             if 'dateofbirth' in general: data['date_of_birth'] = general['dateofbirth']
-             if 'maritalstatus' in general: data['marital_status'] = general['maritalstatus']
-             if 'nationality' in general: data['nationality'] = general['nationality']
-             if 'personaltaxid' in general: data['personal_tax_id'] = general['personaltaxid']
-             if 'socialinsurance' in general: data['social_insurance'] = general['socialinsurance']
-             if 'healthinsurance' in general: data['health_care'] = general['healthinsurance']
-             if 'phonenumber' in general: data['phone'] = general['phonenumber']
-             if 'emailaddress' in general: data['email'] = general['emailaddress']
-             if 'primaryaddress' in general: data['primary_address'] = general['primaryaddress']
-             if 'country' in general: data['country'] = general['country']
-             if 'state' in general: data['state'] = general['state']
-             if 'city' in general: data['city'] = general['city']
-             if 'postcode' in general: data['postcode'] = general['postcode']
-             if 'emefullname' in general: data['emergency_fullname'] = general['emefullname']
-             if 'emephonenumber' in general: data['emergency_phone'] = general['emephonenumber']
-        
-        # Job
-        job = data.get('job', {})
-        if isinstance(job, dict):
-             if 'employeeid' in job: data['employee_id'] = job['employeeid']
-             if 'jobtitle' in job: data['job_title'] = job['jobtitle']
-             if 'positiontype' in job: data['position'] = job['positiontype']
-             elif 'position' in job: data['position'] = job['position']
-             
-             if 'employmenttype' in job: data['employment_type'] = job['employmenttype']
-             if 'joindate' in job: data['join_date'] = job['joindate']
-             if 'serviceyear' in job: data['service_years'] = job['serviceyear']
-             elif 'service_years' in job: data['service_years'] = job['service_years']
-
-             if 'contractnumber' in job: data['contract_number'] = job['contractnumber']
-             if 'contractname' in job: data['contract_name'] = job['contractname']
-             if 'contracttype' in job: data['contract_type'] = job['contracttype']
-             if 'startdate' in job: data['contract_start_date'] = job['startdate']
-             if 'enddate' in job: data['contract_end_date'] = job['enddate']
-             
-             # Handle Department
-             if 'department' in job: 
-                 dept_val = job['department']
-                 if isinstance(dept_val, str) and not dept_val.isdigit():
-                     from apps.departments.models import Department
-                     try:
-                         dept_obj = Department.objects.get(name=dept_val)
-                         data['department'] = dept_obj.id
-                     except (Department.DoesNotExist, Department.MultipleObjectsReturned):
-                         pass
-                 elif dept_val:
-                     data['department'] = dept_val
-
-             # Handle Line Manager
-             if 'linemanager' in job:
-                 lm_val = job['linemanager']
-                 if isinstance(lm_val, (int, str)) and str(lm_val).isdigit():
-                     data['line_manager'] = lm_val
-                 # Else ignore string names for now to prevent 400
-
-             # Handle Work Schedule
-             if 'workschedule' in job:
-                 ws_val = job['workschedule']
-                 if isinstance(ws_val, (int, str)) and str(ws_val).isdigit():
-                      data['work_schedule'] = ws_val
-                 elif isinstance(ws_val, dict) and 'id' in ws_val:
-                      data['work_schedule'] = ws_val['id']
-             elif 'work_schedule' in job:
-                 data['work_schedule'] = job['work_schedule']
-        
-        # Payroll
-        payroll = data.get('payroll', {})
-        print(f"DEBUG: Processing payroll dict: {payroll}")
-        if isinstance(payroll, dict):
-             if 'employeestatus' in payroll: data['status'] = payroll['employeestatus']
-             if 'salary' in payroll: data['salary'] = payroll['salary']
-             if 'lastworkingdate' in payroll: data['last_working_date'] = payroll['lastworkingdate']
-             if 'bankname' in payroll: data['bank_name'] = payroll['bankname']
-             if 'bankaccount' in payroll: data['bank_account'] = payroll['bankaccount']
-             if 'offset' in payroll: data['offset'] = payroll['offset']
-             if 'oneoff' in payroll: data['one_off'] = payroll['oneoff']
-        
-        # Clean date fields - convert empty strings to None
-        for field in date_fields:
-            if field in data:
-                data[field] = clean_empty(data[field])
-        
-        # Clean numeric fields - convert empty strings to None or default
-        for field in numeric_fields:
-            if field in data:
-                val = clean_empty(data[field])
-                if val is None:
-                    # Remove from data so serializer uses model default
-                    data.pop(field, None)
-                else:
-                    data[field] = val
-        
-        # Clean optional text fields - convert empty strings to None
-        for field in optional_text_fields:
-            if field in data:
-                val = clean_empty(data[field])
-                if val is None:
-                    data.pop(field, None)
-                else:
-                    data[field] = val
-        
-        print(f"DEBUG: to_internal_value returning data keys: {list(data.keys())}")
+            data.pop('documents')
         return super().to_internal_value(data)
 
     def create(self, validated_data):
+        from django.db import transaction
         documents_data = validated_data.pop('documents', [])
-        # Clean up any nested dicts that might have passed through
-        validated_data.pop('general', None)
-        validated_data.pop('job', None)
-        validated_data.pop('payroll', None)
-        
-        # Create the employee first
-        # Signals will automatically create the linked User account
-        employee = Employee.objects.create(**validated_data)
-        
-        # Handle documents
-        # Handle documents
-        uploader = None
-        request = self.context.get('request')
-        if request and hasattr(request.user, 'employee'):
-            uploader = request.user.employee
-            
-        for doc_file in documents_data:
-            EmployeeDocument.objects.create(
-                employee=employee,
-                file=doc_file,
-                name=doc_file.name,
-                document_type='General',
-                uploaded_by=uploader
-            )
-            
-        return employee
+        general_dict = validated_data.pop('general', None)
+        job_dict = validated_data.pop('job', None)
+        payroll_dict = validated_data.pop('payroll', None)
 
-    def update(self, instance, validated_data):
-        print(f"DEBUG: update called. validated_data: {list(validated_data.keys())}")
-        # Remove write-only dict fields if they exist to avoid errors in super().update()
-        validated_data.pop('general', None)
-        validated_data.pop('job', None)
-        validated_data.pop('payroll', None)
-        
-        documents_data = validated_data.pop('documents', None)
-        
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        
-        if documents_data:
+        with transaction.atomic():
+            employee = Employee.objects.create(**validated_data)
+
+            # Users partitions: general, address, emergency
+            EmployeeGeneralInfo.objects.create(
+                employee=employee,
+                gender=(general_dict or {}).get('gender', employee.gender),
+                date_of_birth=(general_dict or {}).get('dateofbirth', employee.date_of_birth),
+                marital_status=(general_dict or {}).get('maritalstatus', employee.marital_status),
+                nationality=(general_dict or {}).get('nationality', employee.nationality),
+                personal_tax_id=(general_dict or {}).get('personaltaxid', employee.personal_tax_id),
+                social_insurance=(general_dict or {}).get('socialinsurance', employee.social_insurance),
+                health_care=(general_dict or {}).get('healthinsurance', employee.health_care),
+                phone=(general_dict or {}).get('phonenumber', employee.phone),
+                email=(general_dict or {}).get('emailaddress', employee.email),
+            )
+            EmployeeAddressInfo.objects.create(
+                employee=employee,
+                primary_address=(general_dict or {}).get('primaryaddress', employee.primary_address),
+                country=(general_dict or {}).get('country', employee.country),
+                state=(general_dict or {}).get('state', employee.state),
+                city=(general_dict or {}).get('city', employee.city),
+                postcode=(general_dict or {}).get('postcode', employee.postcode),
+            )
+            EmployeeEmergencyInfo.objects.create(
+                employee=employee,
+                fullname=(general_dict or {}).get('emefullname', employee.emergency_fullname),
+                phone=(general_dict or {}).get('emephonenumber', employee.emergency_phone),
+                relationship=employee.emergency_relationship,
+                state=employee.emergency_state,
+                city=employee.emergency_city,
+                postcode=employee.emergency_postcode,
+            )
+
+            # Company partitions: job + contract
+            # Generate employee code if missing
+            emp_code = (job_dict or {}).get('employeeid')
+            if not emp_code:
+                last = EmployeeJobInfo.objects.order_by('-id').first()
+                next_num = (last.id + 1) if last else 1
+                emp_code = f"EMP{next_num:04d}"
+            EmployeeJobInfo.objects.create(
+                employee=employee,
+                employee_code=emp_code,
+                job_title=(job_dict or {}).get('jobtitle'),
+                position=(job_dict or {}).get('positiontype'),
+                employment_type=(job_dict or {}).get('employmenttype'),
+                join_date=(job_dict or {}).get('joindate'),
+                service_years=(job_dict or {}).get('serviceyear', 0),
+            )
+            EmployeeContractInfo.objects.create(
+                employee=employee,
+                contract_number=(job_dict or {}).get('contractnumber', employee.contract_number),
+                contract_name=(job_dict or {}).get('contractname', employee.contract_name),
+                contract_type=(job_dict or {}).get('contracttype', employee.contract_type),
+                contract_start_date=(job_dict or {}).get('startdate', employee.contract_start_date),
+                contract_end_date=(job_dict or {}).get('enddate', employee.contract_end_date),
+            )
+
+            # Payroll partition
+            EmployeePayrollInfo.objects.create(
+                employee=employee,
+                status=(payroll_dict or {}).get('employeestatus', 'Active'),
+                salary=(payroll_dict or {}).get('salary', 0),
+                last_working_date=(payroll_dict or {}).get('lastworkingdate'),
+                offset=(payroll_dict or {}).get('offset', 0),
+                one_off=(payroll_dict or {}).get('oneoff', 0),
+                bank_name=(payroll_dict or {}).get('bankname'),
+                bank_account=(payroll_dict or {}).get('bankaccount'),
+            )
+
+            # Documents
             uploader = None
             request = self.context.get('request')
             if request and hasattr(request.user, 'employee'):
                 uploader = request.user.employee
-
             for doc_file in documents_data:
                 EmployeeDocument.objects.create(
-                    employee=instance,
-                    name=doc_file.name,
+                    employee=employee,
                     file=doc_file,
+                    name=doc_file.name,
                     document_type='General',
                     uploaded_by=uploader
                 )
+
+        return employee
+
+    def update(self, instance, validated_data):
+        from django.db import transaction
+        print(f"DEBUG: update called. validated_data: {list(validated_data.keys())}")
+        general_dict = validated_data.pop('general', None)
+        job_dict = validated_data.pop('job', None)
+        payroll_dict = validated_data.pop('payroll', None)
+        documents_data = validated_data.pop('documents', None)
+
+        with transaction.atomic():
+            # Update base Employee legacy fields for compatibility
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
+
+            # Ensure partition records exist
+            g = getattr(instance, 'general_info', None) or EmployeeGeneralInfo.objects.create(employee=instance)
+            a = getattr(instance, 'address_info', None) or EmployeeAddressInfo.objects.create(employee=instance)
+            e = getattr(instance, 'emergency_info', None) or EmployeeEmergencyInfo.objects.create(employee=instance)
+            j = getattr(instance, 'job_info', None) or EmployeeJobInfo.objects.create(employee=instance)
+            c = getattr(instance, 'contract_info', None) or EmployeeContractInfo.objects.create(employee=instance)
+            p = getattr(instance, 'payroll_info', None) or EmployeePayrollInfo.objects.create(employee=instance)
+
+            if isinstance(general_dict, dict):
+                g.gender = general_dict.get('gender', g.gender)
+                g.date_of_birth = general_dict.get('dateofbirth', g.date_of_birth)
+                g.marital_status = general_dict.get('maritalstatus', g.marital_status)
+                g.nationality = general_dict.get('nationality', g.nationality)
+                g.personal_tax_id = general_dict.get('personaltaxid', g.personal_tax_id)
+                g.social_insurance = general_dict.get('socialinsurance', g.social_insurance)
+                g.health_care = general_dict.get('healthinsurance', g.health_care)
+                g.phone = general_dict.get('phonenumber', g.phone)
+                g.email = general_dict.get('emailaddress', g.email)
+                g.save()
+                a.primary_address = general_dict.get('primaryaddress', a.primary_address)
+                a.country = general_dict.get('country', a.country)
+                a.state = general_dict.get('state', a.state)
+                a.city = general_dict.get('city', a.city)
+                a.postcode = general_dict.get('postcode', a.postcode)
+                a.save()
+                e.fullname = general_dict.get('emefullname', e.fullname)
+                e.phone = general_dict.get('emephonenumber', e.phone)
+                e.save()
+
+            if isinstance(job_dict, dict):
+                j.employee_code = job_dict.get('employeeid', j.employee_code)
+                j.job_title = job_dict.get('jobtitle', j.job_title)
+                j.position = job_dict.get('positiontype', j.position)
+                j.employment_type = job_dict.get('employmenttype', j.employment_type)
+                j.join_date = job_dict.get('joindate', j.join_date)
+                j.service_years = job_dict.get('serviceyear', j.service_years)
+                j.save()
+                c.contract_number = job_dict.get('contractnumber', c.contract_number)
+                c.contract_name = job_dict.get('contractname', c.contract_name)
+                c.contract_type = job_dict.get('contracttype', c.contract_type)
+                c.contract_start_date = job_dict.get('startdate', c.contract_start_date)
+                c.contract_end_date = job_dict.get('enddate', c.contract_end_date)
+                c.save()
+
+            if isinstance(payroll_dict, dict):
+                p.status = payroll_dict.get('employeestatus', p.status)
+                p.salary = payroll_dict.get('salary', p.salary)
+                p.last_working_date = payroll_dict.get('lastworkingdate', p.last_working_date)
+                p.offset = payroll_dict.get('offset', p.offset)
+                p.one_off = payroll_dict.get('oneoff', p.one_off)
+                p.bank_name = payroll_dict.get('bankname', p.bank_name)
+                p.bank_account = payroll_dict.get('bankaccount', p.bank_account)
+                p.save()
+
+            if documents_data:
+                uploader = None
+                request = self.context.get('request')
+                if request and hasattr(request.user, 'employee'):
+                    uploader = request.user.employee
+                for doc_file in documents_data:
+                    EmployeeDocument.objects.create(
+                        employee=instance,
+                        name=doc_file.name,
+                        file=doc_file,
+                        document_type='General',
+                        uploaded_by=uploader
+                    )
         return instance

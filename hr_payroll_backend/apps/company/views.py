@@ -98,7 +98,7 @@ class DashboardStatsView(APIView):
                     return Response(self._get_employee_data(employee, today, current_month_start, current_year_start, recent_activities))
                 elif role == 'Payroll':
                     return Response(self._get_payroll_data(today, current_month_start, current_year_start, recent_activities))
-                elif role in ['Department_Manager', 'Line Manager']:
+                elif role in ['Department_Manager', 'Line Manager'] and employee and getattr(getattr(employee, 'job_info', None), 'department', None):
                     return Response(self._get_dept_manager_data(employee, today, current_month_start, current_year_start, recent_activities))
                 else:
                     return Response(self._get_hr_manager_data(today, current_month_start, current_year_start, recent_activities))
@@ -130,11 +130,10 @@ class DashboardStatsView(APIView):
             
             # Get recent notifications - handle safely
             try:
+                dept = getattr(getattr(employee, 'job_info', None), 'department', None)
                 if role == 'Manager':
                     notifications = Notification.objects.order_by('-created_at')[:3]
-                elif role in ['Department_Manager', 'Line Manager'] and employee and employee.department:
-                    # Show notifications for me + my team members' requests potentially
-                    # For now just show my notifications + team leave requests below
+                elif role in ['Department_Manager', 'Line Manager'] and employee and dept:
                     notifications = Notification.objects.filter(
                         Q(recipient=employee) | Q(sender=employee)
                     ).order_by('-created_at')[:3]
@@ -166,12 +165,12 @@ class DashboardStatsView(APIView):
             
             # Get recent leave requests - handle safely
             try:
+                dept = getattr(getattr(employee, 'job_info', None), 'department', None)
                 if role == 'Manager':
                     leaves = LeaveRequest.objects.select_related('employee').order_by('-submitted_at')[:2]
-                elif role in ['Department_Manager', 'Line Manager'] and employee and employee.department:
-                    # Show LEAVES from my DEPARTMENT
+                elif role in ['Department_Manager', 'Line Manager'] and employee and dept:
                     leaves = LeaveRequest.objects.filter(
-                        employee__department=employee.department
+                        employee__job_info__department=dept
                     ).exclude(employee=employee).select_related('employee').order_by('-submitted_at')[:3]
                 elif employee:
                     leaves = LeaveRequest.objects.filter(employee=employee).order_by('-submitted_at')[:2]
@@ -213,7 +212,7 @@ class DashboardStatsView(APIView):
         from apps.payroll.models import Payslip
         from django.db.models import Sum, Count
         
-        total_employees = Employee.objects.filter(status='Active').count()
+        total_employees = Employee.objects.filter(payroll_info__status='Active').count()
         pending_leaves = LeaveRequest.objects.filter(status='Pending').count()
         total_departments = Department.objects.count()
         
@@ -229,9 +228,12 @@ class DashboardStatsView(APIView):
         departments = Department.objects.all()
         dept_attendance = []
         for dept in departments[:6]:  # Limit to 6 departments
-            dept_employees = dept.employees.filter(status='Active').count()
+            dept_employees = Employee.objects.filter(
+                job_info__department=dept,
+                payroll_info__status='Active'
+            ).count()
             present_today = Attendance.objects.filter(
-                employee__department=dept,
+                employee__job_info__department=dept,
                 date=today,
                 status__iexact='present'
             ).count()
@@ -417,7 +419,7 @@ class DashboardStatsView(APIView):
         departments = Department.objects.all()[:6]
         for dept in departments:
             dept_total = Payslip.objects.filter(
-                employee__department=dept,
+                employee__job_info__department=dept,
                 period__created_at__gte=month_start
             ).aggregate(total=Sum('net_pay'))['total'] or 0
             dept_payroll.append({
@@ -457,16 +459,17 @@ class DashboardStatsView(APIView):
         from apps.efficiency.models import EfficiencyEvaluation
         from django.db.models import Count, Avg
         
-        if not employee or not employee.department:
+        dept = getattr(getattr(employee, 'job_info', None), 'department', None)
+        if not employee or not dept:
             return {'error': 'Department not found'}
         
-        department = employee.department
-        team_members = Employee.objects.filter(department=department, status='Active')
+        department = dept
+        team_members = Employee.objects.filter(job_info__department=department, payroll_info__status='Active')
         team_size = team_members.count()
         
         # Team attendance rate today
         present_today = Attendance.objects.filter(
-            employee__department=department,
+            employee__job_info__department=department,
             date=today,
             status__iexact='present'
         ).count()
@@ -474,13 +477,13 @@ class DashboardStatsView(APIView):
         
         # Pending requests from team
         pending_requests = LeaveRequest.objects.filter(
-            employee__department=department,
+            employee__job_info__department=department,
             status='Pending'
         ).count()
         
         # Team average performance
         avg_perf = EfficiencyEvaluation.objects.filter(
-            employee__department=department
+            employee__job_info__department=department
         ).aggregate(avg=Avg('total_score'))['avg']
         team_performance = round(avg_perf, 1) if avg_perf else 'N/A'
         
@@ -489,7 +492,7 @@ class DashboardStatsView(APIView):
         for i in range(6, -1, -1):
             day = today - timedelta(days=i)
             present = Attendance.objects.filter(
-                employee__department=department,
+                employee__job_info__department=department,
                 date=day,
                 status__iexact='present'
             ).count()
@@ -504,7 +507,7 @@ class DashboardStatsView(APIView):
         for i in range(5, -1, -1):
             month_date = today.replace(day=1) - timedelta(days=i*30)
             month_hours = Attendance.objects.filter(
-                employee__department=department,
+                employee__job_info__department=department,
                 date__year=month_date.year,
                 date__month=month_date.month
             ).aggregate(total=Sum('worked_hours'))['total'] or 0
@@ -514,8 +517,8 @@ class DashboardStatsView(APIView):
             })
         
         # Team member status pie chart
-        statuses = team_members.values('status').annotate(count=Count('id'))
-        pie_data = [{'id': s['status'], 'label': s['status'], 'value': s['count']} for s in statuses]
+        statuses = team_members.values('payroll_info__status').annotate(count=Count('id'))
+        pie_data = [{'id': s['payroll_info__status'], 'label': s['payroll_info__status'], 'value': s['count']} for s in statuses]
         
         return {
             'summary_cards': [

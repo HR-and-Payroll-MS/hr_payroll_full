@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.db.models import Count, Q
 from datetime import date, datetime
-from .models import Attendance, OvertimeRequest, WorkSchedule
+from .models import Attendance, OvertimeRequest, WorkSchedule, EmployeeWorkScheduleLink
 from .serializers import AttendanceSerializer, AttendanceTodaySerializer, DepartmentAttendanceSerializer, OvertimeRequestSerializer, WorkScheduleSerializer
 from apps.core.permissions import IsHRManagerOrReadOnly, IsHRManager
 from apps.employees.models import Employee
@@ -35,8 +35,9 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
 
         # Regular employees and Line Managers see ONLY their assigned schedule
         if hasattr(user, 'employee') and user.employee:
-            if user.employee.work_schedule_id:
-                return queryset.filter(id=user.employee.work_schedule_id)
+            link = EmployeeWorkScheduleLink.objects.filter(employee=user.employee).first()
+            if link and link.work_schedule_id:
+                return queryset.filter(id=link.work_schedule_id)
             
         return queryset.none()
 
@@ -67,7 +68,11 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
                 employees_to_update = employees_to_update | Employee.objects.filter(id__in=employee_ids)
 
         count = employees_to_update.count()
-        employees_to_update.distinct().update(work_schedule=schedule)
+        # Update work schedule link per employee
+        for emp in employees_to_update.distinct():
+            link, _ = EmployeeWorkScheduleLink.objects.get_or_create(employee=emp)
+            link.work_schedule = schedule
+            link.save()
 
         # Send notifications
         sender = None
@@ -181,11 +186,11 @@ class DepartmentAttendanceView(APIView):
         for dept in departments:
             # Only count employees who have joined by target_date and are not terminated before target_date
             employees = Employee.objects.filter(
-                department=dept
+                job_info__department=dept
             ).filter(
-                Q(join_date__lte=target_date) | Q(join_date__isnull=True)
+                Q(job_info__join_date__lte=target_date) | Q(job_info__join_date__isnull=True)
             ).filter(
-                Q(last_working_date__isnull=True) | Q(last_working_date__gte=target_date)
+                Q(payroll_info__last_working_date__isnull=True) | Q(payroll_info__last_working_date__gte=target_date)
             )
             total = employees.count()
             
@@ -193,7 +198,7 @@ class DepartmentAttendanceView(APIView):
                 continue
             
             attendances = Attendance.objects.filter(
-                employee__department=dept,
+                employee__job_info__department=dept,
                 date=target_date
             )
             
@@ -209,7 +214,7 @@ class DepartmentAttendanceView(APIView):
             # (Filtering by employee__department handles the join)
             ot_count = OvertimeRequest.objects.filter(
                 date=target_date,
-                employees__department=dept
+                employees__job_info__department=dept
             ).values('employees').distinct().count()
 
             data.append({
@@ -242,12 +247,12 @@ class DepartmentAttendanceDetailView(APIView):
             target_date = request.query_params.get('date', timezone.localdate().isoformat())
             
             # Get all employees who should have attendance on this date (respect join_date and last_working_date)
-            employees = Employee.objects.select_related('work_schedule').filter(
-                department_id=pk
+            employees = Employee.objects.select_related('work_schedule_link__work_schedule', 'job_info', 'job_info__department', 'payroll_info').filter(
+                job_info__department_id=pk
             ).filter(
-                Q(join_date__lte=target_date) | Q(join_date__isnull=True)
+                Q(job_info__join_date__lte=target_date) | Q(job_info__join_date__isnull=True)
             ).filter(
-                Q(last_working_date__isnull=True) | Q(last_working_date__gte=target_date)
+                Q(payroll_info__last_working_date__isnull=True) | Q(payroll_info__last_working_date__gte=target_date)
             )
             
             # AUTO-INITIALIZE ABSENT RECORDS
@@ -287,22 +292,25 @@ class DepartmentAttendanceDetailView(APIView):
                     
                     ws_hours_str = '8h'
                     try:
-                        if emp.work_schedule:
+                        link = getattr(emp, 'work_schedule_link', None)
+                        ws = getattr(link, 'work_schedule', None)
+                        if ws:
                             from datetime import timedelta, date, datetime
                             d = date(2000, 1, 1)
-                            s_dt = datetime.combine(d, emp.work_schedule.start_time)
-                            e_dt = datetime.combine(d, emp.work_schedule.end_time)
+                            s_dt = datetime.combine(d, ws.start_time)
+                            e_dt = datetime.combine(d, ws.end_time)
                             if e_dt < s_dt: e_dt += timedelta(days=1)
                             diff_ws = (e_dt - s_dt).total_seconds() / 3600.0
                             ws_hours_str = f"{diff_ws:.2f}h".replace('.00h', 'h')
-                    except Exception: ws_hours_str = '8h'
+                    except Exception:
+                        ws_hours_str = '8h'
 
                     record = {
                         'id': att.id,
                         'employee_id': emp.id,
                         'employee_name': emp.fullname,
                         'employee_photo': request.build_absolute_uri(emp.photo.url) if emp.photo else None,
-                        'job_title': emp.job_title,
+                        'job_title': getattr(getattr(emp, 'job_info', None), 'job_title', None),
                         'date': att.date,
                         'clock_in': clock_in,
                         'clock_in_location': att.clock_in_location,
@@ -321,7 +329,7 @@ class DepartmentAttendanceDetailView(APIView):
                         'employee_id': emp.id,
                         'employee_name': emp.fullname,
                         'employee_photo': request.build_absolute_uri(emp.photo.url) if emp.photo else None,
-                        'job_title': emp.job_title,
+                        'job_title': getattr(getattr(emp, 'job_info', None), 'job_title', None),
                         'date': target_date,
                         'clock_in': '--:--',
                         'clock_in_location': '-',
@@ -416,8 +424,8 @@ class ManagerDepartmentAttendanceView(APIView):
         managed_depts = Department.objects.filter(manager=request.user.employee)
         
         # If no explicitly managed departments, fall back to their own department if they have the DM role
-        if not managed_depts.exists() and is_dm and request.user.employee.department:
-            managed_depts = Department.objects.filter(id=request.user.employee.department.id)
+        if not managed_depts.exists() and is_dm and hasattr(request.user.employee, 'job_info') and request.user.employee.job_info and request.user.employee.job_info.department_id:
+            managed_depts = Department.objects.filter(id=request.user.employee.job_info.department_id)
             
         if not managed_depts.exists():
             return Response([], status=200) # No departments found
@@ -427,11 +435,11 @@ class ManagerDepartmentAttendanceView(APIView):
         
         # Get all employees in these departments
         employees = Employee.objects.filter(
-            department__in=managed_depts
+            job_info__department__in=managed_depts
         ).filter(
-            Q(join_date__lte=target_date) | Q(join_date__isnull=True)
+            Q(job_info__join_date__lte=target_date) | Q(job_info__join_date__isnull=True)
         ).filter(
-            Q(last_working_date__isnull=True) | Q(last_working_date__gte=target_date)
+            Q(payroll_info__last_working_date__isnull=True) | Q(payroll_info__last_working_date__gte=target_date)
         ).distinct()
         
         # AUTO-INITIALIZE ABSENT RECORDS
@@ -471,7 +479,7 @@ class ManagerDepartmentAttendanceView(APIView):
                     'employee_id': emp.id, 
                     'employee_name': emp.fullname,
                     'employee_photo': request.build_absolute_uri(att.employee.photo.url) if att.employee.photo else None,
-                    'job_title': emp.job_title,
+                    'job_title': getattr(getattr(emp, 'job_info', None), 'job_title', None),
                     'date': att.date,
                     'clock_in': clock_in,
                     'clock_in_location': att.clock_in_location,
@@ -489,7 +497,7 @@ class ManagerDepartmentAttendanceView(APIView):
                     'employee_id': emp.id,
                     'employee_name': emp.fullname,
                     'employee_photo': request.build_absolute_uri(emp.photo.url) if emp.photo else None,
-                    'job_title': emp.job_title,
+                    'job_title': getattr(getattr(emp, 'job_info', None), 'job_title', None),
                     'date': target_date,
                     'clock_in': '--:--',
                     'clock_in_location': '-',

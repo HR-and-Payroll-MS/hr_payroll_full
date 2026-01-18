@@ -28,7 +28,8 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         
         is_hr = False
         if hasattr(user, 'employee') and user.employee:
-            pos = user.employee.position.lower() if user.employee.position else ""
+            ji = getattr(user.employee, 'job_info', None)
+            pos = (ji.position or '').lower() if ji else ""
             groups = user.groups.values_list('name', flat=True)
             is_hr = 'hr' in pos or 'human resources' in pos or 'Manager' in groups or 'Admin' in groups
             

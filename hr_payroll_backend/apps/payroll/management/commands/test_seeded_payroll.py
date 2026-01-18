@@ -1,6 +1,11 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
+from django.db.models.signals import post_save
+from apps.employees import signals as employee_signals
 from apps.employees.models import Employee
+from apps.users.models import EmployeeGeneralInfo
+from apps.company.models import EmployeeJobInfo
+from apps.payroll.models import EmployeePayrollInfo
 from apps.payroll.models import PayrollPeriod, TaxCode
 from apps.payroll.services import PayrollCalculationService
 from datetime import date
@@ -23,38 +28,54 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR('Seeded codes not found! Run seed_strict_tax first.'))
             return
 
-        # 2. Setup Test Employee
-        # Clean existing test user if any
-        User.objects.filter(email='seed_test@example.com').delete()
-        User.objects.filter(username='seed_tester').delete()
-        Employee.objects.filter(email='seed_test@example.com').delete()
-        
-        import traceback
+        # 2. Setup Test Employee (partitioned schema)
+        # Clean existing test user/employee if any
+        post_save.disconnect(employee_signals.create_user_for_employee, sender=Employee)
+        post_save.disconnect(employee_signals.sync_user_groups, sender=Employee)
+        post_save.disconnect(employee_signals.create_employee_for_user, sender=User)
+
         try:
-            # Create Employee first
-            emp, _ = Employee.objects.get_or_create(
+            User.objects.filter(email='seed_test@example.com').delete()
+            User.objects.filter(username='seed_tester').delete()
+            emp_ids = list(EmployeeGeneralInfo.objects.filter(email='seed_test@example.com').values_list('employee_id', flat=True))
+            Employee.objects.filter(id__in=emp_ids).delete()
+
+            emp = Employee.objects.create(first_name='Seed', last_name='Tester')
+            EmployeeGeneralInfo.objects.create(
+                employee=emp,
                 email='seed_test@example.com',
-                defaults={
-                    'first_name': 'Seed',
-                    'last_name': 'Tester',
-                    'join_date': date(2020, 1, 1),
-                    'salary': Decimal('10000.00'),
-                    'status': 'Active'
-                }
+                phone='+251900000000',
+                gender='Other',
+                date_of_birth=date(1995, 1, 1),
+                marital_status='Single',
             )
-            
-            # Create User and link
+            EmployeeJobInfo.objects.create(
+                employee=emp,
+                employee_code='SEEDTEST',
+                job_title='QA Engineer',
+                employment_type='Full-Time',
+                join_date=date(2020, 1, 1),
+            )
+            EmployeePayrollInfo.objects.create(
+                employee=emp,
+                status='Active',
+                salary=Decimal('10000.00'),
+                last_working_date=None,
+                bank_name='Test Bank',
+                bank_account='000111222',
+                offset=Decimal('0'),
+                one_off=Decimal('0'),
+            )
+
             user, created = User.objects.get_or_create(username='seed_tester', defaults={'email': 'seed_test@example.com'})
             if created:
                 user.set_password('password123')
-            
             user.employee = emp
             user.save()
-            
-        except Exception:
-            self.stdout.write(self.style.ERROR('Failed to create User/Employee'))
-            traceback.print_exc()
-            return
+        finally:
+            post_save.connect(employee_signals.create_user_for_employee, sender=Employee)
+            post_save.connect(employee_signals.sync_user_groups, sender=Employee)
+            post_save.connect(employee_signals.create_employee_for_user, sender=User)
         
         # 3. Test ETH Tax (Progressive)
         # 10,000 ETB
@@ -66,6 +87,10 @@ class Command(BaseCommand):
         # 7801-10000 @30% = 660  (2200 * 0.3)
         # Total Tax expected: ~2045
         
+        # NOTE: PayrollCalculationService still expects legacy fields; attach attributes for compatibility
+        emp.salary = Decimal('10000.00')
+        emp.join_date = date(2020, 1, 1)
+        emp.status = 'Active'
         service_eth = PayrollCalculationService(month='June', year=2025, tax_code_id=eth_tax.id)
         payslip_eth = service_eth._calculate_for_employee(emp, PayrollPeriod(month='June', year=2025))
         

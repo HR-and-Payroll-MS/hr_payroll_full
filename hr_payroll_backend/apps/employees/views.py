@@ -62,7 +62,18 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         try:
-            queryset = Employee.objects.select_related('department', 'line_manager').all()
+            queryset = Employee.objects.select_related(
+                'job_info',
+                'job_info__department',
+                'job_info__line_manager',
+                'payroll_info',
+                'general_info',
+                'address_info',
+                'emergency_info',
+                'work_schedule_link',
+                'contract_info',
+                'org_node'
+            ).all()
             user = self.request.user
             
             if not user.is_authenticated:
@@ -80,12 +91,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 employee = getattr(user, 'employee', None)
                 if employee:
                     managed_dept_ids = list(Department.objects.filter(manager=employee).values_list('id', flat=True))
-                    
-                    if not managed_dept_ids and employee.department_id:
-                        managed_dept_ids = [employee.department_id]
+                    # Fallback to the employee's own department from job info
+                    if not managed_dept_ids:
+                        dept_id = getattr(getattr(employee, 'job_info', None), 'department_id', None)
+                        if dept_id:
+                            managed_dept_ids = [dept_id]
                     
                     if managed_dept_ids:
-                        return queryset.filter(department_id__in=managed_dept_ids)
+                        return queryset.filter(job_info__department_id__in=managed_dept_ids)
                 return queryset.none()
 
             # Regular Employee
@@ -96,17 +109,17 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             # Filter by department
             department = self.request.query_params.get('department')
             if department:
-                queryset = queryset.filter(department__name=department)
+                queryset = queryset.filter(job_info__department__name=department)
             
             # Filter by status
             status_param = self.request.query_params.get('status')
             if status_param:
-                queryset = queryset.filter(status=status_param)
+                queryset = queryset.filter(payroll_info__status=status_param)
             
             # Filter by employment type
             emp_type = self.request.query_params.get('employment_type')
             if emp_type:
-                queryset = queryset.filter(employment_type=emp_type)
+                queryset = queryset.filter(job_info__employment_type=emp_type)
             
             # Search by name
             search = self.request.query_params.get('search')
@@ -179,8 +192,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         
         # 1. Warning if clocking in after shift end (but allow it as per user request)
         message = 'Clocked in successfully'
-        if employee.work_schedule:
-            ws = employee.work_schedule
+        # Use work schedule link
+        link = getattr(employee, 'work_schedule_link', None)
+        ws = getattr(link, 'work_schedule', None)
+        if ws:
             now_local = timezone.localtime(timezone.now()).time()
             if ws.end_time and now_local > ws.end_time:
                 message += f" (Note: You are clocking in after your scheduled shift end of {ws.end_time.strftime('%H:%M')})"
@@ -261,11 +276,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             message = 'Clocked out successfully'
             
             # Optional: Warning if clocking out after scheduled time
-            if employee.work_schedule:
+            link = getattr(employee, 'work_schedule_link', None)
+            ws = getattr(link, 'work_schedule', None)
+            if ws:
                 from datetime import datetime
                 now_local = timezone.localtime(timezone.now()).time()
-                if now_local > employee.work_schedule.end_time:
-                    message += f" (Note: You are clocking out after your scheduled time of {employee.work_schedule.end_time.strftime('%H:%M')})"
+                if ws.end_time and now_local > ws.end_time:
+                    message += f" (Note: You are clocking out after your scheduled time of {ws.end_time.strftime('%H:%M')})"
 
             return Response({
                 'message': message,
@@ -305,19 +322,22 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             except Department.DoesNotExist:
                 return Response({'error': 'Department found'}, status=400)
         else:
-            target_department = employee.department
+            ji = getattr(employee, 'job_info', None)
+            target_department = getattr(ji, 'department', None)
             
         if not target_department:
-             return Response({'error': 'No department specified and employee has no current department'}, status=400)
+            return Response({'error': 'No department specified and employee has no current department'}, status=400)
 
         # 1. Update Employee Department (if changed)
-        if employee.department != target_department:
-            employee.department = target_department
-            employee.save()
+        ji = getattr(employee, 'job_info', None)
+        if ji and ji.department != target_department:
+            ji.department = target_department
+            ji.save()
             
         # 2. Update Job Title (Signal will handle group changes: Employee -> Manager/Line Manager)
-        employee.job_title = 'Department Manager'
-        employee.save()
+        if ji:
+            ji.job_title = 'Department Manager'
+            ji.save()
         
         # 3. Set as Manager of the Department
         target_department.manager = employee
@@ -351,8 +371,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         employee = self.get_object()
         
         # 1. Reset Job Title (Signal will handle group changes: -> Employee)
-        employee.job_title = 'Employee'
-        employee.save()
+        ji = getattr(employee, 'job_info', None)
+        if ji:
+            ji.job_title = 'Employee'
+            ji.save()
         
         # 2. Remove employee as manager from any departments they manage
         managed_departments = Department.objects.filter(manager=employee)
@@ -383,152 +405,27 @@ class EmployeeViewSet(viewsets.ModelViewSet):
              Employees removed from the chart are NOT deleted - they are just removed from the org chart.
         """
         if request.method == 'GET':
-            # Only get employees that are explicitly on the org chart
-            employees = Employee.objects.select_related('line_manager', 'department').filter(in_org_chart=True)
-            
+            from apps.company.models import CompanyOrgNode
+            employees = Employee.objects.select_related('line_manager', 'department').all()
+            org_nodes = CompanyOrgNode.objects.filter(in_org_chart=True)
+
             nodes = []
             edges = []
-            
+
+            # Build map for quick lookup
+            node_by_emp_id = {n.employee_id: n for n in org_nodes}
+
             for emp in employees:
-                is_root = emp.line_manager is None or not emp.line_manager.in_org_chart
-                # Ensure image URL is absolute for frontend
-                image_url = ''
-                if emp.photo:
-                    try:
-                        image_url = request.build_absolute_uri(emp.photo.url)
-                    except Exception:
-                        image_url = emp.photo.url
-
-                node = {
-                    'id': str(emp.id),
-                    'type': 'orgCard',
-                    'data': {
-                        'name': f"{emp.first_name} {emp.last_name}",
-                        'role': emp.job_title or 'Employee',
-                        'department': emp.department.name if emp.department else 'General',
-                        'image': image_url, 
-                        'isRoot': is_root
-                    },
-                    'position': {'x': emp.org_x, 'y': emp.org_y} 
-                }
-                nodes.append(node)
-                
-                # Only create edge if line_manager is also on the org chart
-                if emp.line_manager and emp.line_manager.in_org_chart:
-                    edge = {
-                        'id': f"e{emp.line_manager.id}-{emp.id}",
-                        'source': str(emp.line_manager.id),
-                        'target': str(emp.id),
-                        'type': 'smoothstep'
-                    }
-                    edges.append(edge)
-                    
-            return Response({'nodes': nodes, 'edges': edges}, status=status.HTTP_200_OK)
-        
-        elif request.method == 'PUT':
-            nodes = request.data.get('nodes', [])
-            edges = request.data.get('edges', [])
-            
-            # 1. Process Nodes (Create/Update for org chart)
-            uuid_map = {} # client_id -> db_id (int)
-            
-            for n in nodes:
-                client_id = str(n.get('id', ''))
-                data = n.get('data', {})
-                pos = n.get('position', {'x': 0, 'y': 0})
-                name = data.get('name', 'Unknown')
-                role = data.get('role', '')
-                dept_name = data.get('department', '')
-                
-                # Name Splitting (First Last)
-                parts = name.strip().split(' ', 1)
-                first = parts[0]
-                last = parts[1] if len(parts) > 1 else ''
-                
-                # Dept Lookup
-                dept = Department.objects.filter(name__iexact=dept_name).first()
-
-                emp = None
-                if client_id.isdigit():
-                    # Update Existing Employee
-                    emp = Employee.objects.filter(id=int(client_id)).first()
-                    if emp:
-                        emp.first_name = first
-                        emp.last_name = last
-                        emp.job_title = role
-                        emp.department = dept
-                        emp.org_x = pos.get('x', 0)
-                        emp.org_y = pos.get('y', 0)
-                        emp.in_org_chart = True  # Mark as on org chart
-                        emp.save()
-                        uuid_map[client_id] = emp.id
-                
-                if not emp:
-                    # Create New Employee (from org chart)
-                    emp = Employee.objects.create(
-                        first_name=first,
-                        last_name=last,
-                        job_title=role,
-                        department=dept,
-                        status='Active',
-                        org_x=pos.get('x', 0),
-                        org_y=pos.get('y', 0),
-                        in_org_chart=True  # New employees from org chart are on the chart
-                    )
-                    uuid_map[client_id] = emp.id
-            
-            # 2. Handle Removals from Org Chart (NOT deletions)
-            chart_db_ids = set(uuid_map.values())
-            currently_on_chart_ids = set(Employee.objects.filter(in_org_chart=True).values_list('id', flat=True))
-            ids_to_remove_from_chart = currently_on_chart_ids - chart_db_ids
-            
-            if ids_to_remove_from_chart:
-                Employee.objects.filter(id__in=ids_to_remove_from_chart).update(
-                    in_org_chart=False,
-                    line_manager=None,
-                    org_x=0,
-                    org_y=0
-                )
-
-            # 3. Process Edges (Relationships)
-            edge_map = {}
-            for e in edges:
-                edge_map[str(e['target'])] = str(e['source'])
-            
-            for client_id, db_id in uuid_map.items():
-                try:
-                    emp = Employee.objects.get(id=db_id)
-                    source_client_id = edge_map.get(client_id)
-                    if source_client_id:
-                        manager_db_id = uuid_map.get(source_client_id)
-                        if manager_db_id and manager_db_id != db_id:
-                            emp.line_manager_id = manager_db_id
-                        else:
-                            emp.line_manager = None 
-                    else:
-                        emp.line_manager = None
-                    emp.save()
-                except Employee.DoesNotExist:
+                org = node_by_emp_id.get(emp.id)
+                if not org:
                     continue
-
-            # 4. Return UPDATED nodes with ABSOLUTE image URLs
-            # Frontend needs accurate URLs so images don't disappear after save
-            updated_employees = Employee.objects.select_related('department').filter(id__in=chart_db_ids)
-            
-            new_nodes = []
-            new_edges = []
-            
-            for emp in updated_employees:
-                is_root = emp.line_manager_id is None or not emp.line_manager.in_org_chart
-                
-                # Build absolute URL
+                is_root = emp.line_manager is None or (emp.line_manager_id not in node_by_emp_id)
                 image_url = ''
                 if emp.photo:
                     try:
                         image_url = request.build_absolute_uri(emp.photo.url)
                     except Exception:
                         image_url = emp.photo.url
-
                 node = {
                     'id': str(emp.id),
                     'type': 'orgCard',
@@ -539,19 +436,124 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                         'image': image_url,
                         'isRoot': is_root
                     },
-                    'position': {'x': emp.org_x, 'y': emp.org_y} 
+                    'position': {'x': org.org_x, 'y': org.org_y}
+                }
+                nodes.append(node)
+
+                if emp.line_manager and (emp.line_manager_id in node_by_emp_id):
+                    edge = {
+                        'id': f"e{emp.line_manager.id}-{emp.id}",
+                        'source': str(emp.line_manager.id),
+                        'target': str(emp.id),
+                        'type': 'smoothstep'
+                    }
+                    edges.append(edge)
+
+            return Response({'nodes': nodes, 'edges': edges}, status=status.HTTP_200_OK)
+        
+        elif request.method == 'PUT':
+            from apps.company.models import CompanyOrgNode
+            nodes = request.data.get('nodes', [])
+            edges = request.data.get('edges', [])
+
+            uuid_map = {}  # client_id -> db_id
+
+            for n in nodes:
+                client_id = str(n.get('id', ''))
+                data = n.get('data', {})
+                pos = n.get('position', {'x': 0, 'y': 0})
+                name = data.get('name', 'Unknown')
+                role = data.get('role', '')
+                dept_name = data.get('department', '')
+
+                parts = name.strip().split(' ', 1)
+                first = parts[0]
+                last = parts[1] if len(parts) > 1 else ''
+
+                dept = Department.objects.filter(name__iexact=dept_name).first()
+
+                emp = None
+                if client_id.isdigit():
+                    emp = Employee.objects.filter(id=int(client_id)).first()
+                    if emp:
+                        emp.first_name = first
+                        emp.last_name = last
+                        emp.job_title = role
+                        emp.department = dept
+                        emp.save()
+                        # Upsert org node
+                        org, _ = CompanyOrgNode.objects.get_or_create(employee=emp)
+                        org.in_org_chart = True
+                        org.org_x = pos.get('x', 0)
+                        org.org_y = pos.get('y', 0)
+                        org.save()
+                        uuid_map[client_id] = emp.id
+
+                if not emp:
+                    emp = Employee.objects.create(
+                        first_name=first,
+                        last_name=last,
+                        job_title=role,
+                        department=dept,
+                        status='Active',
+                    )
+                    org = CompanyOrgNode.objects.create(employee=emp, in_org_chart=True, org_x=pos.get('x', 0), org_y=pos.get('y', 0))
+                    uuid_map[client_id] = emp.id
+
+            # Remove from chart (do not delete employees)
+            chart_db_ids = set(uuid_map.values())
+            currently_on_chart_ids = set(CompanyOrgNode.objects.filter(in_org_chart=True).values_list('employee_id', flat=True))
+            ids_to_remove = currently_on_chart_ids - chart_db_ids
+            if ids_to_remove:
+                CompanyOrgNode.objects.filter(employee_id__in=ids_to_remove).update(in_org_chart=False, org_x=0, org_y=0)
+
+            # Edges
+            edge_map = {str(e['target']): str(e['source']) for e in edges}
+            for client_id, db_id in uuid_map.items():
+                emp = Employee.objects.filter(id=db_id).first()
+                if not emp:
+                    continue
+                source_client_id = edge_map.get(client_id)
+                if source_client_id:
+                    manager_db_id = uuid_map.get(source_client_id)
+                    emp.line_manager_id = manager_db_id if (manager_db_id and manager_db_id != db_id) else None
+                else:
+                    emp.line_manager = None
+                emp.save()
+
+            # Return updated nodes
+            updated_org_nodes = CompanyOrgNode.objects.filter(employee_id__in=chart_db_ids, in_org_chart=True).select_related('employee__department')
+            new_nodes = []
+            new_edges = []
+            for org in updated_org_nodes:
+                emp = org.employee
+                is_root = emp.line_manager_id is None or not CompanyOrgNode.objects.filter(employee_id=emp.line_manager_id, in_org_chart=True).exists()
+                image_url = ''
+                if emp.photo:
+                    try:
+                        image_url = request.build_absolute_uri(emp.photo.url)
+                    except Exception:
+                        image_url = emp.photo.url
+                node = {
+                    'id': str(emp.id),
+                    'type': 'orgCard',
+                    'data': {
+                        'name': f"{emp.first_name} {emp.last_name}",
+                        'role': emp.job_title or 'Employee',
+                        'department': emp.department.name if emp.department else 'General',
+                        'image': image_url,
+                        'isRoot': is_root
+                    },
+                    'position': {'x': org.org_x, 'y': org.org_y}
                 }
                 new_nodes.append(node)
-                
-                # Reconstruct edges based on current DB state
-                if emp.line_manager_id and emp.line_manager.in_org_chart:
-                    edge = {
+                if emp.line_manager_id and CompanyOrgNode.objects.filter(employee_id=emp.line_manager_id, in_org_chart=True).exists():
+                    new_edges.append({
                         'id': f"e{emp.line_manager_id}-{emp.id}",
                         'source': str(emp.line_manager_id),
                         'target': str(emp.id),
                         'type': 'smoothstep'
-                    }
-                    new_edges.append(edge)
+                    })
 
             return Response({'nodes': new_nodes, 'edges': new_edges}, status=status.HTTP_200_OK)
 

@@ -15,7 +15,7 @@ class WorkScheduleSerializer(serializers.ModelSerializer):
 class AttendanceSerializer(serializers.ModelSerializer):
     """Serializer for attendance records."""
     employee_name = serializers.SerializerMethodField()
-    employee_id_display = serializers.CharField(source='employee.employee_id', read_only=True)
+    employee_id_display = serializers.CharField(source='employee.job_info.employee_code', read_only=True)
     attendance_id = serializers.IntegerField(source='id', read_only=True)
     
     class Meta:
@@ -32,11 +32,12 @@ class AttendanceSerializer(serializers.ModelSerializer):
         employee = data.get('employee')
         date_record = data.get('date')
         
-        # Check join date
+        # Check join date via job_info
         if employee and date_record:
-            if employee.join_date and date_record < employee.join_date:
+            ji = getattr(employee, 'job_info', None)
+            if ji and ji.join_date and date_record < ji.join_date:
                 raise serializers.ValidationError(
-                    f"Cannot create attendance record before employee join date ({employee.join_date})"
+                    f"Cannot create attendance record before employee join date ({ji.join_date})"
                 )
         return data
     

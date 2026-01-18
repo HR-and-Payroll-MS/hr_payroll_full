@@ -2,6 +2,7 @@
 Includes TaxCode, Allowance, Deduction, TaxBracket for complete payroll management.
 """
 from django.db import models
+from decimal import Decimal
 
 
 class PayrollPeriod(models.Model):
@@ -363,3 +364,22 @@ class EmployeeDeduction(models.Model):
     
     def __str__(self):
         return f"{self.employee} - {self.deduction.name}"
+
+
+# ===== Employee payroll partition (Payroll app) =====
+
+class EmployeePayrollInfo(models.Model):
+    employee = models.OneToOneField('employees.Employee', on_delete=models.CASCADE, related_name='payroll_info')
+    status = models.CharField(max_length=50, default='Active')
+    salary = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    last_working_date = models.DateField(null=True, blank=True)
+    offset = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    one_off = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0'))
+    bank_name = models.CharField(max_length=100, blank=True, null=True)
+    bank_account = models.CharField(max_length=50, blank=True, null=True)
+
+    class Meta:
+        db_table = 'employee_payroll_info'
+
+    def __str__(self):
+        return f"PayrollInfo for {self.employee_id}"

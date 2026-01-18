@@ -81,8 +81,15 @@ class Attendance(models.Model):
                 scheduled_hours = 8.0 # Default fallback
                 shift_start_time = None
                 
-                if self.employee.work_schedule:
-                    ws = self.employee.work_schedule
+                # Work schedule via link partition
+                from apps.attendance.models import EmployeeWorkScheduleLink
+                ws = None
+                try:
+                    link = EmployeeWorkScheduleLink.objects.filter(employee=self.employee).first()
+                    ws = link.work_schedule if link else None
+                except Exception:
+                    ws = None
+                if ws:
                     shift_start_time = ws.start_time
                     # Calculate duration from TimeFields
                     # Use dummy date for calculation
@@ -178,6 +185,18 @@ class WorkSchedule(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.start_time.strftime('%H:%M')} - {self.end_time.strftime('%H:%M')})"
+
+
+class EmployeeWorkScheduleLink(models.Model):
+    """Partition link between Employee and WorkSchedule."""
+    employee = models.OneToOneField('employees.Employee', on_delete=models.CASCADE, related_name='work_schedule_link')
+    work_schedule = models.ForeignKey(WorkSchedule, on_delete=models.SET_NULL, null=True, blank=True, related_name='employee_links')
+
+    class Meta:
+        db_table = 'employee_work_schedule_link'
+
+    def __str__(self):
+        return f"WSLink {self.employee_id} -> {self.work_schedule_id}"
 
 
 class OvertimeRequest(models.Model):

@@ -13,60 +13,35 @@ class EmployeeDocumentInline(admin.TabularInline):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ['employee_id', 'fullname', 'email', 'department', 'job_title', 'status']
-    list_filter = ['status', 'department', 'employment_type', 'gender']
-    search_fields = ['first_name', 'last_name', 'email', 'employee_id']
-    list_select_related = ['department']
+    list_display = ['employee_code', 'fullname', 'email', 'department', 'job_title', 'status']
+    list_filter = ['payroll_info__status', 'job_info__department', 'job_info__employment_type', 'general_info__gender']
+    search_fields = ['first_name', 'last_name', 'general_info__email', 'job_info__employee_code']
+    list_select_related = ['job_info__department', 'payroll_info', 'general_info']
     inlines = [EmployeeDocumentInline]
-    
-    fieldsets = (
-        ('General Information', {
-            'fields': (
-                ('first_name', 'last_name'),
-                ('gender', 'date_of_birth', 'marital_status'),
-                ('nationality', 'personal_tax_id'),
-                ('phone', 'email'),
-                'photo',
-            )
-        }),
-        ('Address', {
-            'fields': (
-                'primary_address',
-                ('country', 'state'),
-                ('city', 'postcode'),
-            )
-        }),
-        ('Emergency Contact', {
-            'fields': (
-                ('emergency_fullname', 'emergency_phone'),
-                ('emergency_state', 'emergency_city', 'emergency_postcode'),
-            ),
-            'classes': ('collapse',)
-        }),
-        ('Job Information', {
-            'fields': (
-                'employee_id',
-                ('job_title', 'position'),
-                ('department', 'line_manager'),
-                ('employment_type', 'join_date', 'service_years'),
-            )
-        }),
-        ('Contract', {
-            'fields': (
-                ('contract_number', 'contract_name', 'contract_type'),
-                ('contract_start_date', 'contract_end_date'),
-            ),
-            'classes': ('collapse',)
-        }),
-        ('Payroll', {
-            'fields': (
-                ('status', 'salary'),
-                ('offset', 'one_off'),
-                'last_working_date',
-                ('bank_name', 'bank_account'),
-            )
-        }),
-    )
+
+    fields = (('first_name', 'last_name'), 'photo')
+
+    def employee_code(self, obj):
+        ji = getattr(obj, 'job_info', None)
+        return getattr(ji, 'employee_code', None) if ji else None
+    employee_code.short_description = 'Employee ID'
+
+    def email(self, obj):
+        gi = getattr(obj, 'general_info', None)
+        return getattr(gi, 'email', None) if gi else None
+
+    def department(self, obj):
+        ji = getattr(obj, 'job_info', None)
+        dept = getattr(ji, 'department', None) if ji else None
+        return dept.name if dept else None
+
+    def job_title(self, obj):
+        ji = getattr(obj, 'job_info', None)
+        return getattr(ji, 'job_title', None) if ji else None
+
+    def status(self, obj):
+        pi = getattr(obj, 'payroll_info', None)
+        return getattr(pi, 'status', None) if pi else None
 
 
 @admin.register(EmployeeDocument)

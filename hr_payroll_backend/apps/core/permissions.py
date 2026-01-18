@@ -23,8 +23,8 @@ class IsHRManager(permissions.BasePermission):
                 return False
                 
             # Fallback to job title ONLY for clear HR roles
-            if not is_hr and hasattr(request.user, 'employee') and request.user.employee and request.user.employee.job_title:
-                title = request.user.employee.job_title.upper()
+            if not is_hr and hasattr(request.user, 'employee') and request.user.employee and hasattr(request.user.employee, 'job_info') and request.user.employee.job_info and request.user.employee.job_info.job_title:
+                title = request.user.employee.job_info.job_title.upper()
                 if 'HR' in title or 'HUMAN RESOURCES' in title or 'ADMINISTRATOR' in title:
                     is_hr = True
                     
