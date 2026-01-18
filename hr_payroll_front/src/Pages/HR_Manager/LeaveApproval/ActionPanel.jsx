@@ -1,20 +1,28 @@
 import React, { useState } from 'react';
 import { CheckCircle, XCircle, MessageSquare } from 'lucide-react';
 
-export default function ActionPanel({ request, onApprove, onDeny }) {
+export default function ActionPanel({
+  request,
+  onApprove,
+  onDeny,
+  disabled = false,
+  disabledReason = '',
+}) {
   const [comment, setComment] = useState('');
 
   // Status checks
   const isApproved = request.status === 'approved';
   const isDenied = request.status === 'denied';
+  const isDisabled = disabled || isApproved || isDenied;
 
   return (
     <div className="h-full w-full bg-gray-50 dark:bg-slate-700 p-4 rounded shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 flex flex-col gap-4 transition-colors">
-      
       {/* Header with Icon */}
       <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 border-b dark:border-slate-600 pb-2">
         <MessageSquare size={16} className="text-blue-500" />
-        <p className="font-bold text-sm uppercase tracking-wider">Review Action</p>
+        <p className="font-bold text-sm uppercase tracking-wider">
+          Review Action
+        </p>
       </div>
 
       {/* Comment Area */}
@@ -34,54 +42,49 @@ export default function ActionPanel({ request, onApprove, onDeny }) {
       {/* Action Buttons */}
       <div className="flex items-center gap-3 pt-2">
         <button
-          disabled={isApproved}
+          disabled={isDisabled}
           onClick={() => {
             onApprove(comment);
             setComment('');
           }}
           className={`flex-1 flex items-center justify-center gap-2 rounded py-2.5 text-sm font-bold transition-all shadow-sm ${
-            isApproved
+            isDisabled
               ? 'bg-slate-200 dark:bg-slate-600 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50'
               : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
           }`}
         >
-          <CheckCircle size={16} /> 
+          <CheckCircle size={16} />
           {isApproved ? 'Approved' : 'Approve'}
         </button>
 
         <button
-          disabled={isDenied}
+          disabled={isDisabled}
           onClick={() => {
             onDeny(comment);
             setComment('');
           }}
           className={`flex-1 flex items-center justify-center gap-2 rounded py-2.5 text-sm font-bold transition-all shadow-sm ${
-            isDenied
+            isDisabled
               ? 'bg-slate-200 dark:bg-slate-600 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-50'
               : 'bg-red-600 hover:bg-red-700 text-white active:scale-95'
           }`}
         >
-          <XCircle size={16} /> 
+          <XCircle size={16} />
           {isDenied ? 'Denied' : 'Deny'}
         </button>
       </div>
-      
+
       {/* Subtle footer status */}
-      {(isApproved || isDenied) && (
+      {(isApproved || isDenied || disabledReason) && (
         <p className="text-[10px] text-center italic text-slate-400 dark:text-slate-500">
-          This request has already been finalized.
+          {isApproved || isDenied
+            ? 'This request has already been finalized.'
+            : disabledReason}
         </p>
       )}
     </div>
   );
 }
-
-
-
-
-
-
-
 
 // import React, { useState } from 'react';
 // import { CheckCircle, XCircle } from 'lucide-react';
@@ -101,7 +104,7 @@ export default function ActionPanel({ request, onApprove, onDeny }) {
 //         placeholder="Add a comment..."
 //         value={comment}
 //         onChange={(e) => setComment(e.target.value)}
-//         // disabled={isApprovedOrDenied} 
+//         // disabled={isApprovedOrDenied}
 //       />
 //       <div className="flex items-end flex-1 gap-2 mt-3">
 //         <button
@@ -137,4 +140,3 @@ export default function ActionPanel({ request, onApprove, onDeny }) {
 //     </div>
 //   );
 // }
-

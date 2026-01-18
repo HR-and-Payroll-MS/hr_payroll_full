@@ -102,100 +102,129 @@ function GeneratePayroll() {
   const [rollbackReason, setRollbackReason] = useState('');
   const [showRollbackModal, setShowRollbackModal] = useState(false);
 
+  const activeTaxCodesSorted = useMemo(() => {
+    const activeCodes = taxCodes.filter((c) => c.is_active || c.isEnabled);
+    return [...activeCodes].sort((a, b) => {
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (aTime !== bTime) return bTime - aTime;
+      return (b.id || 0) - (a.id || 0);
+    });
+  }, [taxCodes]);
+
+  const selectedTaxCodeLabel = useMemo(() => {
+    const tc = activeTaxCodesSorted.find(
+      (c) =>
+        c.id === selectedTaxCode ||
+        c.code === selectedTaxCode ||
+        String(c.id) === String(selectedTaxCode)
+    );
+    return tc ? `${tc.name} (${tc.code})` : '';
+  }, [activeTaxCodesSorted, selectedTaxCode]);
+
   const departments = useMemo(
     () => ['All Employees', 'Finance', 'IT', 'HR', 'Operations'],
     []
   );
 
   // Fetch payroll period data
-  const fetchPayrollPeriod = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchPayrollPeriod = useCallback(
+    async (silent = false) => {
+      if (!silent) {
+        setLoading(true);
+        setError(null);
+      }
 
-    try {
-      // Try to get existing period for this month/year
-      const periodsRes = await axiosPrivate.get(`/payroll/periods/`, {
-        params: { month, year },
-      });
-
-      const periods = periodsRes.data.results || periodsRes.data || [];
-      const existingPeriod = periods.find(
-        (p) => p.month === month && p.year === parseInt(year)
-      );
-
-      if (existingPeriod) {
-        setPeriodId(existingPeriod.id);
-        setStatus(existingPeriod.status);
-
-        // Fetch full period details with payslips
-        const periodDetail = await axiosPrivate.get(
-          `/payroll/periods/${existingPeriod.id}/`
-        );
-        const periodData = periodDetail.data;
-
-        // Transform payslips to match table format
-        const formattedPayslips = (periodData.payslips || []).map((p) => {
-          const details = p.details || {};
-          const deductionItems = Array.isArray(details.deductions)
-            ? details.deductions
-            : [];
-          const nonTaxDeductions = deductionItems
-            .filter(
-              (d) =>
-                !String(d.label || '')
-                  .toLowerCase()
-                  .includes('tax')
-            )
-            .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
-          const fallbackNonTax = parseFloat(p.total_deductions) || 0;
-          const deductionsTotal =
-            deductionItems.length > 0 ? nonTaxDeductions : fallbackNonTax;
-
-          const adjustmentApplied = parseFloat(details.adjustmentApplied) || 0;
-
-          return {
-            id: p.employee,
-            payslipId: p.id,
-            name: p.employee_name,
-            role: p.job_title || '',
-            department: p.department || '',
-            baseSalary: parseFloat(p.base_salary) || 0,
-            bonus: parseFloat(p.bonus) || 0,
-            bankAccount: p.bank_account || '',
-            attendedDays: p.worked_days || 0,
-            lopDays: p.absent_days || 0,
-            overtimeHours: parseFloat(p.overtime_hours) || 0,
-            overtimePay: parseFloat(p.overtime_pay) || 0,
-            taxCode: p.tax_code_display?.split(' (')[0] || '',
-            taxVersion:
-              p.tax_code_display?.split(' (')[1]?.replace(')', '') || '',
-            taxDisplay: p.tax_code_display || 'Not Assigned',
-            taxAmount: parseFloat(p.tax_amount) || 0,
-            netPay: parseFloat(p.net_pay) || 0,
-            grossPay: parseFloat(p.gross_pay) || 0,
-            hasIssues: p.has_issues,
-            issueNotes: p.issue_notes,
-            details,
-            deductionsTotal,
-            adjustmentDisplay: adjustmentApplied,
-          };
+      try {
+        // Try to get existing period for this month/year
+        const periodsRes = await axiosPrivate.get(`/payroll/periods/`, {
+          params: { month, year },
         });
 
-        setPayslips(formattedPayslips);
-      } else {
-        // No existing period
-        setPeriodId(null);
-        setStatus('draft');
-        setPayslips([]);
+        const periods = periodsRes.data.results || periodsRes.data || [];
+        const existingPeriod = periods.find(
+          (p) => p.month === month && p.year === parseInt(year)
+        );
+
+        if (existingPeriod) {
+          setPeriodId(existingPeriod.id);
+          setStatus(existingPeriod.status);
+
+          const periodDetail = await axiosPrivate.get(
+            `/payroll/periods/${existingPeriod.id}/`
+          );
+          const periodData = periodDetail.data;
+
+          // Transform payslips to match table format
+          const formattedPayslips = (periodData.payslips || []).map((p) => {
+            const details = p.details || {};
+            const deductionItems = Array.isArray(details.deductions)
+              ? details.deductions
+              : [];
+            const nonTaxDeductions = deductionItems
+              .filter(
+                (d) =>
+                  !String(d.label || '')
+                    .toLowerCase()
+                    .includes('tax')
+              )
+              .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
+            const fallbackNonTax = parseFloat(p.total_deductions) || 0;
+            const deductionsTotal =
+              deductionItems.length > 0 ? nonTaxDeductions : fallbackNonTax;
+
+            const adjustmentApplied =
+              parseFloat(details.adjustmentApplied) || 0;
+
+            return {
+              id: p.employee,
+              payslipId: p.id,
+              name: p.employee_name,
+              role: p.job_title || '',
+              department: p.department || '',
+              baseSalary: parseFloat(p.base_salary) || 0,
+              bonus: parseFloat(p.bonus) || 0,
+              bankAccount: p.bank_account || '',
+              attendedDays: p.worked_days || 0,
+              lopDays: p.absent_days || 0,
+              overtimeHours: parseFloat(p.overtime_hours) || 0,
+              overtimePay: parseFloat(p.overtime_pay) || 0,
+              taxCode: p.tax_code_display?.split(' (')[0] || '',
+              taxVersion:
+                p.tax_code_display?.split(' (')[1]?.replace(')', '') || '',
+              taxDisplay: p.tax_code_display || 'Not Assigned',
+              taxAmount: parseFloat(p.tax_amount) || 0,
+              netPay: parseFloat(p.net_pay) || 0,
+              grossPay: parseFloat(p.gross_pay) || 0,
+              hasIssues: p.has_issues,
+              issueNotes: p.issue_notes,
+              details,
+              deductionsTotal,
+              adjustmentDisplay: adjustmentApplied,
+            };
+          });
+
+          setPayslips(formattedPayslips);
+        } else {
+          // No existing period
+          setPeriodId(null);
+          setStatus('draft');
+          setPayslips([]);
+        }
+      } catch (err) {
+        console.error('Error fetching payroll:', err);
+        if (!silent) {
+          setError('Failed to load payroll data');
+          setPayslips([]);
+        }
+      } finally {
+        if (!silent) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      console.error('Error fetching payroll:', err);
-      setError('Failed to load payroll data');
-      setPayslips([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [axiosPrivate, month, year]);
+    },
+    [axiosPrivate, month, year]
+  );
 
   // Fetch tax codes for configuration
   const fetchTaxCodes = useCallback(async () => {
@@ -204,16 +233,96 @@ function GeneratePayroll() {
       const codes = res.data.results || res.data || [];
       // Filter out inactive tax codes so they cannot be selected for payroll
       const activeCodes = codes.filter((c) => c.is_active || c.isEnabled);
+
+      // Sort by created_at desc, fallback to id desc, pick latest as default
+      const sorted = [...activeCodes].sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        if (aTime !== bTime) return bTime - aTime;
+        return (b.id || 0) - (a.id || 0);
+      });
+
       setTaxCodes(activeCodes);
+      if (!selectedTaxCode && sorted.length > 0) {
+        setSelectedTaxCode(sorted[0].id);
+      }
     } catch (err) {
       console.error('Error fetching tax codes:', err);
     }
-  }, [axiosPrivate]);
+  }, [axiosPrivate, selectedTaxCode]);
+
+  // Fetch a single tax code (with allowances) when opening its versions
+  const fetchTaxCodeDetail = useCallback(
+    async (backendId, codeIdForState) => {
+      if (!backendId) return;
+      try {
+        const res = await axiosPrivate.get(`/payroll/tax-codes/${backendId}/`);
+        const tc = res.data;
+        const allowances = mapAllowances(tc.allowances);
+        const transformedVersions = (tc.versions || []).map((v) => ({
+          id: v.id,
+          version: v.version,
+          validFrom: v.valid_from,
+          validTo: v.valid_to,
+          status: { active: v.is_active, locked: v.is_locked },
+          incomeTax: {
+            ...(v.income_tax_config || { type: 'progressive' }),
+            brackets:
+              v.tax_brackets?.map((b) => ({
+                min: parseFloat(b.min_income),
+                max: b.max_income ? parseFloat(b.max_income) : '',
+                rate: parseFloat(b.rate),
+              })) ||
+              v.income_tax_config?.brackets ||
+              [],
+          },
+          pension: v.pension_config || {
+            employeePercent: 7,
+            employerPercent: 11,
+          },
+          statutoryDeductions: v.statutory_deductions_config || [],
+          exemptions: v.exemptions_config || [],
+          rounding: v.rounding_rules || { method: 'nearest', precision: 2 },
+          compliance: v.compliance_notes || [],
+          allowances,
+        }));
+
+        setAllTaxCodes((prev) =>
+          prev.map((c) =>
+            c.id === codeIdForState
+              ? {
+                  ...c,
+                  backendId: tc.id,
+                  name: tc.name,
+                  isEnabled: tc.is_active,
+                  allowances,
+                  versions: transformedVersions,
+                }
+              : c
+          )
+        );
+      } catch (err) {
+        console.error('Failed to fetch tax code detail', err);
+      }
+    },
+    [axiosPrivate]
+  );
 
   useEffect(() => {
     fetchPayrollPeriod();
     fetchTaxCodes();
   }, [fetchPayrollPeriod, fetchTaxCodes]);
+
+  // Real-time status polling (silent refresh to avoid flicker)
+  useEffect(() => {
+    let interval;
+    if (status === 'pending_approval' || status === 'rolled_back') {
+      interval = setInterval(() => {
+        fetchPayrollPeriod(true);
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [status, fetchPayrollPeriod]);
 
   // Create period if not exists
   const createPeriod = async () => {
@@ -238,11 +347,7 @@ function GeneratePayroll() {
   // Generate payroll
   // Open Generate Modal
   const handleGenerate = () => {
-    if (taxCodes.length > 0) {
-      // Pre-select first active code
-      const activeCode = taxCodes.find((c) => c.is_active);
-      if (activeCode) setSelectedTaxCode(activeCode.id);
-    }
+    // Default to latest active code picked in fetchTaxCodes; nothing extra needed here
     setShowGenerateModal(true);
   };
 
@@ -297,6 +402,21 @@ function GeneratePayroll() {
     } catch (err) {
       console.error('Error regenerating payroll:', err);
       setError(err.response?.data?.error || 'Failed to regenerate payroll');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Reopen to draft (Back to Draft)
+  const handleReopen = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      await axiosPrivate.post(`/payroll/periods/${periodId}/reopen/`);
+      await fetchPayrollPeriod();
+    } catch (err) {
+      console.error('Error reopening to draft:', err);
+      setError(err.response?.data?.error || 'Failed to reopen to draft');
     } finally {
       setSyncing(false);
     }
@@ -368,9 +488,6 @@ function GeneratePayroll() {
       setError('Please provide a reason for rollback');
       return;
     }
-
-    setSyncing(true);
-    setError(null);
 
     try {
       const res = await axiosPrivate.post(
@@ -462,8 +579,11 @@ function GeneratePayroll() {
   const tableData = useMemo(() => {
     return payslips.map((p) => ({
       ...p,
-      name: p.hasIssues ? `⚠️ ${p.name}` : p.name,
-      // For table display
+      // Keep name clean; rely on issue column/notes for warnings
+      name: p.name,
+      issuesDisplay: p.hasIssues
+        ? `⚠ Issues: ${p.issueNotes || 'Check details'}`
+        : '',
     }));
   }, [payslips]);
 
@@ -496,7 +616,16 @@ function GeneratePayroll() {
     'ACTION',
   ];
 
-  if (loading) return <ViewerLoader />;
+  const LoadingOverlay = ({ show }) => {
+    if (!show) return null;
+    return (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-white/80 dark:bg-slate-900/80">
+        <div className="flex items-center gap-3 text-slate-600 dark:text-slate-200 text-sm font-semibold">
+          <RefreshCw size={18} className="animate-spin" /> Loading...
+        </div>
+      </div>
+    );
+  };
 
   const StatusBadge = ({ status }) => {
     const colors = {
@@ -520,6 +649,7 @@ function GeneratePayroll() {
 
   return (
     <div className="h-full dark:bg-slate-900 flex flex-col w-full text-slate-900 font-sans">
+      <LoadingOverlay show={loading} />
       <Header
         className={
           'bg-white dark:shadow-slate-900 dark:shadow-md dark:inset-shadow-xs dark:inset-shadow-slate-600 dark:bg-slate-800 px-6'
@@ -576,42 +706,31 @@ function GeneratePayroll() {
                   {periodId ? 'Regenerate' : 'Generate'} Payroll
                 </button>
               )}
-              {status === 'generated' && (
+
+              {(status === 'generated' || status === 'rolled_back') && (
                 <>
                   <button
-                    onClick={async () => {
-                      try {
-                        setSyncing(true);
-                        await axiosPrivate.post(
-                          `/payroll/periods/${periodId}/reopen/`
-                        );
-                        await fetchPayrollPeriod();
-                      } catch (err) {
-                        console.error('Error reopening to draft:', err);
-                        setError(
-                          err.response?.data?.error ||
-                            'Failed to reopen to draft'
-                        );
-                      } finally {
-                        setSyncing(false);
-                      }
-                    }}
-                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 transition-all"
-                  >
-                    <ArrowLeft size={14} /> Edit Draft
-                  </button>
-                  <button
-                    onClick={handleSubmit}
+                    onClick={handleReopen}
                     disabled={syncing}
-                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
+                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 transition-all border border-slate-200 px-3 py-2 rounded-lg bg-white hover:bg-slate-50"
                   >
-                    {syncing ? (
-                      <RefreshCw size={14} className="animate-spin" />
-                    ) : (
-                      <Send size={14} />
-                    )}
-                    Submit to HR
+                    <ArrowLeft size={14} /> Back to Draft
                   </button>
+
+                  {status === 'generated' && (
+                    <button
+                      onClick={handleSubmit}
+                      disabled={syncing}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      {syncing ? (
+                        <RefreshCw size={14} className="animate-spin" />
+                      ) : (
+                        <Send size={14} />
+                      )}
+                      Submit to HR
+                    </button>
+                  )}
                 </>
               )}
             </>
@@ -895,7 +1014,7 @@ function GeneratePayroll() {
       {/* Generate Payroll Modal (Tax Code Selection) */}
       {showGenerateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 w-[450px] shadow-xl">
+          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 w-[520px] shadow-xl">
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <RefreshCw size={20} className="text-blue-600" /> Generate Payroll
             </h3>
@@ -921,49 +1040,27 @@ function GeneratePayroll() {
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                 Select Tax Code & Version
               </label>
-              <div className="space-y-2">
-                {taxCodes.filter((tc) => tc.is_active).length === 0 ? (
-                  <div className="p-3 bg-red-50 text-red-600 text-xs rounded border border-red-200">
-                    No active tax codes found. Please enable a tax code in
-                    Policy settings.
-                  </div>
-                ) : (
-                  taxCodes
-                    .filter((tc) => tc.is_active)
-                    .map((tc) => (
-                      <label
-                        key={tc.id}
-                        className={`flex items-center gap-3 p-3 rounded border cursor-pointer transition-all ${
-                          selectedTaxCode === tc.id
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name="taxCode"
-                          value={tc.id}
-                          checked={selectedTaxCode === tc.id}
-                          onChange={(e) => setSelectedTaxCode(tc.id)}
-                          className="w-4 h-4 accent-blue-600"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-sm text-slate-700 dark:text-slate-200">
-                              {tc.name}
-                            </span>
-                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
-                              ACTIVE
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            {tc.code}
-                          </div>
-                        </div>
-                      </label>
-                    ))
-                )}
-              </div>
+              {activeTaxCodesSorted.length === 0 ? (
+                <div className="p-3 bg-red-50 text-red-600 text-xs rounded border border-red-200">
+                  No active tax codes found. Please enable a tax code in Policy
+                  settings.
+                </div>
+              ) : (
+                <Dropdown
+                  options={activeTaxCodesSorted.map((tc) => ({
+                    content: `${tc.name} (${tc.code})`,
+                    value: tc.id,
+                  }))}
+                  onChange={(val, option) =>
+                    setSelectedTaxCode(option?.value ?? val)
+                  }
+                  placeholder="Select tax code"
+                  selectedLabel={selectedTaxCodeLabel}
+                  border="border border-slate-200 dark:border-slate-600"
+                  padding="py-2"
+                  text="text-sm"
+                />
+              )}
             </div>
 
             {/* Version selection for the currently selected tax code */}
@@ -1015,6 +1112,14 @@ function TaxCodeVersionsSelect({
   const [versions, setVersions] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState(null);
+  const selectedVersionLabel = React.useMemo(() => {
+    const ver = versions.find((v) => v.id === selectedId);
+    return ver
+      ? `${ver.version || ver.name || `Version ${ver.id}`} (${
+          ver.valid_from
+        } → ${ver.valid_to || 'open'})`
+      : '';
+  }, [versions, selectedId]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -1022,14 +1127,33 @@ function TaxCodeVersionsSelect({
       setLoading(true);
       setError(null);
       try {
-        const res = await axiosPrivate.get('/payroll/tax-code-versions/');
+        // Fetch versions for this tax code; only keep active ones
+        const res = await axiosPrivate.get('/payroll/tax-code-versions/', {
+          params: { tax_code: taxCodeId },
+        });
         const list = res.data.results || res.data || [];
         const filtered = list.filter(
           (v) =>
-            (v.tax_code === taxCodeId || v.tax_code?.id === taxCodeId) &&
-            v.is_active
+            v.tax_code === taxCodeId ||
+            v.tax_code?.id === taxCodeId ||
+            v.tax_code?.code === taxCodeId ||
+            (typeof taxCodeId === 'string' &&
+              v.tax_code?.toString() === taxCodeId)
         );
-        if (mounted) setVersions(filtered);
+        const activeOnly = filtered.filter((v) => v.is_active);
+        if (mounted) {
+          // Sort by valid_from desc, fallback to id desc
+          const sorted = [...activeOnly].sort((a, b) => {
+            const aTime = a.valid_from ? new Date(a.valid_from).getTime() : 0;
+            const bTime = b.valid_from ? new Date(b.valid_from).getTime() : 0;
+            if (aTime !== bTime) return bTime - aTime;
+            return (b.id || 0) - (a.id || 0);
+          });
+          setVersions(sorted);
+          if (!selectedId && sorted.length > 0) {
+            onSelect(sorted[0].id);
+          }
+        }
       } catch (err) {
         if (mounted) setError('Failed to load versions');
       } finally {
@@ -1054,25 +1178,20 @@ function TaxCodeVersionsSelect({
     );
 
   return (
-    <div className="mt-2 pl-1 space-y-1">
-      {versions.map((ver) => (
-        <label key={ver.id} className="flex items-center gap-2 text-xs">
-          <input
-            type="radio"
-            name={`tax-version-${taxCodeId}`}
-            checked={selectedId === ver.id}
-            onChange={() => onSelect(ver.id)}
-            className="w-3 h-3 accent-indigo-600"
-          />
-          <span className="font-semibold">
-            {ver.name || `Version ${ver.id}`}
-          </span>
-          <span className="text-slate-500">
-            ({ver.valid_from} → {ver.valid_to || 'open'})
-          </span>
-        </label>
-      ))}
-    </div>
+    <Dropdown
+      options={versions.map((ver) => ({
+        content: `${ver.version || ver.name || `Version ${ver.id}`} (${
+          ver.valid_from
+        } → ${ver.valid_to || 'open'})`,
+        value: ver.id,
+      }))}
+      onChange={(val, option) => onSelect(option?.value ?? val)}
+      placeholder="Select version"
+      selectedLabel={selectedVersionLabel}
+      border="border border-slate-200 dark:border-slate-600"
+      padding="py-2"
+      text="text-sm"
+    />
   );
 }
 

@@ -1,4 +1,5 @@
 """Serializers for Payroll app including TaxCode, Allowance, Deduction."""
+from django.db import transaction
 from rest_framework import serializers
 from .models import (
     PayrollPeriod, Payslip, PayrollApprovalLog, TaxCode, TaxCodeVersion,
@@ -56,12 +57,34 @@ class PayslipSerializer(serializers.ModelSerializer):
         return obj.employee.job_title
     
     def get_bank_account(self, obj):
+        request = self.context.get('request') if hasattr(self, 'context') else None
         bank = obj.employee.bank_name or ''
         account = obj.employee.bank_account or ''
-        if account:
-            # Mask account number
-            return f"{bank} ****{account[-4:]}" if len(account) >= 4 else f"{bank} {account}"
-        return None
+        full = f"{bank} {account}".strip()
+
+        # Determine access: only HR Managers or the employee themselves (or superuser) may see full account
+        can_view_full = False
+        if request and getattr(request, 'user', None) and request.user.is_authenticated:
+            user = request.user
+            if user.is_superuser:
+                can_view_full = True
+            # HR Manager group
+            if user.groups.filter(name__iexact='HR Manager').exists():
+                can_view_full = True
+            # Employee owner
+            if hasattr(user, 'employee') and user.employee and user.employee == obj.employee:
+                can_view_full = True
+
+        if not account:
+            return bank or None
+
+        if can_view_full:
+            return full
+
+        # Fallback: masked account
+        if len(account) >= 4:
+            return f"{bank} ****{account[-4:]}" if bank else f"****{account[-4:]}"
+        return f"{bank} {account}".strip()
     
     def get_tax_code_display(self, obj):
         if obj.tax_code and obj.tax_code_version:
@@ -154,25 +177,67 @@ class PayrollPeriodCreateSerializer(serializers.ModelSerializer):
 
 class TaxBracketSerializer(serializers.ModelSerializer):
     """Serializer for tax brackets."""
+
     class Meta:
         model = TaxBracket
         fields = ['id', 'tax_code_version', 'min_income', 'max_income', 'rate', 'applies_to', 'created_at']
         read_only_fields = ['created_at']
+        extra_kwargs = {
+            # When nested, parent sets this; keep optional to avoid validation failure
+            'tax_code_version': {'required': False},
+        }
 
 
 class TaxCodeVersionSerializer(serializers.ModelSerializer):
     """Serializer for tax code versions with nested brackets."""
-    tax_brackets = TaxBracketSerializer(many=True, read_only=True)
-    
+
+    tax_brackets = TaxBracketSerializer(many=True, required=False)
+    allowances = serializers.SerializerMethodField()
+
     class Meta:
         model = TaxCodeVersion
         fields = [
-            'id', 'tax_code', 'version', 'valid_from', 'valid_to', 
+            'id', 'tax_code', 'version', 'valid_from', 'valid_to',
             'is_active', 'is_locked', 'income_tax_config', 'pension_config',
             'rounding_rules', 'compliance_notes', 'statutory_deductions_config',
-            'exemptions_config', 'tax_brackets', 'created_at', 'updated_at'
+            'exemptions_config', 'tax_brackets', 'allowances', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+    def get_allowances(self, obj):
+        qs = obj.allowances.filter(is_active=True)
+        return AllowanceListSerializer(qs, many=True).data
+
+    def _write_brackets(self, version, brackets_data):
+        if not brackets_data:
+            return
+        objs = []
+        for bracket in brackets_data:
+            data = {
+                'tax_code_version': version,
+                'min_income': bracket.get('min_income'),
+                'max_income': bracket.get('max_income'),
+                'rate': bracket.get('rate'),
+                'applies_to': bracket.get('applies_to', []),
+            }
+            objs.append(TaxBracket(**data))
+        TaxBracket.objects.bulk_create(objs)
+
+    @transaction.atomic
+    def create(self, validated_data):
+        brackets_data = validated_data.pop('tax_brackets', [])
+        version = super().create(validated_data)
+        self._write_brackets(version, brackets_data)
+        return version
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        brackets_data = validated_data.pop('tax_brackets', None)
+        instance = super().update(instance, validated_data)
+        if brackets_data is not None:
+            instance.tax_brackets.all().delete()
+            self._write_brackets(instance, brackets_data)
+        return instance
 
 
 class TaxCodeSerializer(serializers.ModelSerializer):
@@ -188,7 +253,9 @@ class TaxCodeSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
     
     def get_allowances(self, obj):
-        return AllowanceListSerializer(obj.allowances.filter(is_active=True), many=True).data
+        # Legacy/top-level allowances without version binding
+        qs = obj.allowances.filter(is_active=True, tax_code_version__isnull=True)
+        return AllowanceListSerializer(qs, many=True).data
     
     def get_deductions(self, obj):
         return DeductionListSerializer(obj.deductions.filter(is_active=True), many=True).data
@@ -214,7 +281,7 @@ class AllowanceSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'code', 'name', 'description', 'calculation_type',
             'default_value', 'percentage_value', 'formula', 'is_taxable',
-            'is_active', 'applies_to', 'tax_code', 'tax_code_name',
+            'is_active', 'applies_to', 'tax_code', 'tax_code_version', 'tax_code_name',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']

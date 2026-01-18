@@ -121,7 +121,7 @@ export default function SendRequestForEmployee() {
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase">Select Date Range</label>
-            <SearchDate onSubmit={setDate} applyButton={false} />
+            <SearchDate style = "" onSubmit={setDate} applyButton={false} />
           </div>
 
           <div className="flex flex-col gap-1">

@@ -1,205 +1,288 @@
-import { createRoot } from "react-dom/client";
-import React, { useRef, useState } from "react";
-import PayslipTemplate from "../../../Components/PayslipTemplate";
-import { generatePdfBlobFromElement } from "../../../utils/pdf";
-import PayslipList from "../../../Components/PayslipList";
-import Table from "../../../Components/Table";
-import calcPayrollForEmployee from "./calcPayrollForEmployee";
-import ViewerLoader from "./ViewerLoader";
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
-import axios from "axios";
-import Header from "../../../Components/Header";
-import { Generatepayroll } from "../../../Components/Level2Hearder";
-// import ExportTable from "../../../Components/ExportTable";
-const demoEmployees = [
-  { id: "EMP001", name: "John Doe", department: "Finance", jobTitle: "Accountant", bankAccount: "0011223344" },
-  { id: "EMP002", name: "Mary Smith", department: "HR", jobTitle: "HR Officer", bankAccount: "9988776655" },
-  { id: "EMP003", name: "Ali Mohammed", department: "IT", jobTitle: "Developer", bankAccount: "2233445566" },
-];
-const key =[['id'], ['name'],[ 'department'], ['jobTitle'], ['bankAccount']];
-const title=['Employee ID', 'Name', 'Department', 'Job Title', 'Bank Account','Actions'];
-const structure=[1,1,1,1,1,64];
+import { createRoot } from 'react-dom/client';
+import React, { useEffect, useRef, useState } from 'react';
+import PayslipTemplate from '../../../Components/PayslipTemplate';
+import { generatePdfBlobFromElement } from '../../../utils/pdf';
+import ViewerLoader from './ViewerLoader';
+import axios from 'axios';
+import Header from '../../../Components/Header';
+import { Generatepayroll } from '../../../Components/Level2Hearder';
+import { axiosPublic } from '../../../api/axiosInstance';
+
 export default function OnPayrollGenerate({
   progress,
   setProgress,
   summary,
-  setSummary
-  
+  setSummary,
 }) {
-  const [empid, setEmpid] = useState("");
   const printRef = useRef();
-  const [popup,setpopup]= useState(false)
+  const [popup, setpopup] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [employees] = useState(demoEmployees);
   const [month, setMonth] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [periodId, setPeriodId] = useState(null);
+  const [payslips, setPayslips] = useState([]);
+  const [selectedPayslip, setSelectedPayslip] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-// map over all employees and sum up the net pay and store in summary state
-  async function handlePreviewAndSummary() {
-    const payrolls = employees.map((e) => calcPayrollForEmployee(e, month));
-    console.log(payrolls);
-    const totalPayout = payrolls.reduce((s, p) => s + p.net, 0);
-    // const missing = payrolls.filter((p) => !p.employee.bankAccount).length;
-    setSummary(
-      { totalEmployees: payrolls.length,
-         totalPayout,
-          // missing,
-          payrolls });
-          setpopup(false)
-  }
-async function handleGenerateConfirmed() {
-  if (!summary?.payrolls?.length) {
-    alert("No payroll data to process.");
-    return;
-  }
+  const monthName = new Date(`${month}-01`).toLocaleString('en-US', {
+    month: 'long',
+  });
+  const year = new Date(`${month}-01`).getFullYear();
 
-  setProcessing(true);
-  setProgress("Generating and uploading payslips...");
+  useEffect(() => {
+    fetchPeriodAndPayslips();
+  }, [month]);
 
-  let count = 0;
-  const total = summary.payrolls.length;
-
-  try {
-    for (const p of summary.payrolls) {
-      count++;
-      setProgress(`Processing ${count}/${total}: ${p.employee.name}`);
-
-      // === Offscreen rendering (same as before) ===
-      const container = document.createElement("div");
-      container.style.cssText = "position:fixed;left:-9999px;top:0;width:800px;background:white;";
-      document.body.appendChild(container);
-
-      const root = createRoot(container);
-      root.render(<PayslipTemplate payroll={p} month={p.month} />);
-
-      await document.fonts.ready;
-      let node = container.firstElementChild;
-      while (!node) {
-        await new Promise(r => requestAnimationFrame(r));
-        node = container.firstElementChild;
-      }
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-      const blob = await generatePdfBlobFromElement(node);
-
-      // === UPLOAD PDF DIRECTLY TO DJANGO USING FormData ===
-      const formData = new FormData();
-      formData.append("pdf_file", blob, `payslip_${p.employee.id}_${p.month}.pdf`);
-      formData.append("employee_id", p.employee.id);
-      formData.append("month", p.month);
-      formData.append("gross", p.gross.toString());
-      formData.append("net", p.net.toString());
-
-      // This calls your Django endpoint
-      await axios.post("/api/payslips/generate/", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          // Add auth if needed (JWT, session, etc.)
-          // Authorization: `Bearer ${token}`,
-        },
+  async function fetchPeriodAndPayslips() {
+    setLoading(true);
+    setError('');
+    try {
+      const periodRes = await axiosPublic.get(`/payroll/periods/`, {
+        params: { month: monthName, year },
       });
+      const periods = periodRes.data || [];
+      if (!periods.length) {
+        setPayslips([]);
+        setSelectedPayslip(null);
+        setPeriodId(null);
+        setSummary(null);
+        setError(`No payroll period found for ${monthName} ${year}.`);
+        return;
+      }
 
-      // Cleanup DOM
-      root.unmount();
-      document.body.removeChild(container);
+      const pid = periods[0].id;
+      setPeriodId(pid);
 
-      // Prevent browser freeze on large batches
-      if (count % 10 === 0) await new Promise(r => setTimeout(r, 0));
+      const payslipRes = await axiosPublic.get(`/payroll/payslips/`, {
+        params: { period: pid },
+      });
+      const data = payslipRes.data || [];
+      setPayslips(data);
+      setSelectedPayslip(data[0] || null);
+      setSummary({
+        totalEmployees: data.length,
+        totalPayout: data.reduce((sum, p) => sum + Number(p.net_pay || 0), 0),
+        payrolls: data,
+      });
+    } catch (err) {
+      console.error('Failed to load payslips', err);
+      setError(
+        err?.response?.data?.detail || err.message || 'Failed to load payslips'
+      );
+      setPayslips([]);
+      setSelectedPayslip(null);
+      setSummary(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function handleGenerateConfirmed() {
+    if (!summary?.payrolls?.length) {
+      alert('No payroll data to process.');
+      return;
     }
 
-    setProgress(`Success! All ${total} payslips generated and saved.`);
-    alert(`Payroll processed successfully!\n${total} payslips uploaded to server.`);
-    
-  } catch (err) {
-    console.error("Payslip generation failed:", err);
-    const msg = err.response?.data?.detail || err.message || "Unknown error";
-    alert(`Failed at employee ${count}: ${msg}`);
-    setProgress("Error occurred");
-  } finally {
-    setProcessing(false);
-    setTimeout(() => setProgress(""), 6000);
+    setProcessing(true);
+    setProgress('Generating and uploading payslips...');
+
+    let count = 0;
+    const total = summary.payrolls.length;
+
+    try {
+      for (const p of summary.payrolls) {
+        count++;
+        setProgress(`Processing ${count}/${total}: ${p.employee.name}`);
+
+        // === Offscreen rendering (same as before) ===
+        const container = document.createElement('div');
+        container.style.cssText =
+          'position:fixed;left:-9999px;top:0;width:800px;background:white;';
+        document.body.appendChild(container);
+
+        const root = createRoot(container);
+        root.render(<PayslipTemplate payroll={p} month={p.month} />);
+
+        await document.fonts.ready;
+        let node = container.firstElementChild;
+        while (!node) {
+          await new Promise((r) => requestAnimationFrame(r));
+          node = container.firstElementChild;
+        }
+        await new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(r))
+        );
+
+        const blob = await generatePdfBlobFromElement(node);
+
+        // === UPLOAD PDF DIRECTLY TO DJANGO USING FormData ===
+        const formData = new FormData();
+        formData.append(
+          'pdf_file',
+          blob,
+          `payslip_${p.employee.id}_${p.month}.pdf`
+        );
+        formData.append('employee_id', p.employee);
+        formData.append('payslip_id', p.id);
+        formData.append('period_id', periodId);
+        formData.append('gross', (p.gross_pay || 0).toString());
+        formData.append('net', (p.net_pay || 0).toString());
+
+        // This calls your Django endpoint
+        await axios.post('/api/payslips/generate/', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            // Add auth if needed (JWT, session, etc.)
+            // Authorization: `Bearer ${token}`,
+          },
+        });
+
+        // Cleanup DOM
+        root.unmount();
+        document.body.removeChild(container);
+
+        // Prevent browser freeze on large batches
+        if (count % 10 === 0) await new Promise((r) => setTimeout(r, 0));
+      }
+
+      setProgress(`Success! All ${total} payslips generated and saved.`);
+      alert(
+        `Payroll processed successfully!\n${total} payslips uploaded to server.`
+      );
+    } catch (err) {
+      console.error('Payslip generation failed:', err);
+      const msg = err.response?.data?.detail || err.message || 'Unknown error';
+      alert(`Failed at employee ${count}: ${msg}`);
+      setProgress('Error occurred');
+    } finally {
+      setProcessing(false);
+      setTimeout(() => setProgress(''), 6000);
+    }
   }
-}
 
   return (
     <>
-      <Header Title={"Generate Payroll"}/>
-       <Generatepayroll  message={summary?"Generate payslips for all employees? This will replace existing payslips for this month.":"Preview summary first."}   noCancel={summary?false:true} confirmText={summary?"Generate Payroll":"Preview Summary"}  onDateClick={setMonth} text={summary?null:"Preview Summary"} icon={summary?null:"Eye"} popup={summary?popup:false} setpopup={summary?setpopup:handlePreviewAndSummary} action={handleGenerateConfirmed}/>
-    <div className=" overflow-auto">
-      <div className="flex gap-6">
-        <div className="flex-1 space-y-4">
-          <div className="  rounded ">
-            {console.log("demo employee data",demoEmployees)}
-            <Table components={ ViewerLoader} D1={month} Data={demoEmployees} Structure={structure} ke={key} title={title}/>
-          </div>
-        
-        </div>
-{processing && (
-  <div style={{
-    position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
-    background: "#333", color: "white", padding: "12px 24px",
-    borderRadius: 8, zIndex: 9999, fontSize: "14px", boxShadow: "0 4px 12px rgba(0,0,0,0.3)"
-  }}>
-    {progress || "Processing..."}
-  </div>
-)}
-        <aside className="space-y-4">  
-         
-          <div className="p-4 shadow bg-slate-50 rounded">
-            <h3 className="font-semibold mb-2">Summary (Preview)</h3>
-            {!summary && <div className="text-sm text-slate-500">Click "Preview Summary" to view payroll totals.</div>}
-            {summary && (
-              <div>
-                <div className="text-sm">
-                  Employees: <strong>{summary.totalEmployees}</strong>
+      <Header Title={'Generate Payroll'} />
+      <Generatepayroll
+        message={
+          summary
+            ? 'Generate payslips for all employees? This will replace existing payslips for this month.'
+            : 'Load payslips first.'
+        }
+        noCancel={summary ? false : true}
+        confirmText={summary ? 'Generate Payroll' : 'Reload Payslips'}
+        onDateClick={setMonth}
+        text={summary ? null : 'Reload Payslips'}
+        icon={summary ? null : 'Eye'}
+        popup={summary ? popup : false}
+        setpopup={summary ? setpopup : fetchPeriodAndPayslips}
+        action={handleGenerateConfirmed}
+      />
+      <div className=" overflow-auto">
+        <div className="flex gap-6">
+          <div className="flex-1 space-y-4">
+            <div className="rounded border border-slate-200 dark:border-slate-700 p-4">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-semibold">
+                  Payslips for {monthName} {year}
+                </h3>
+                {loading && (
+                  <span className="text-xs text-slate-500">Loading…</span>
+                )}
+              </div>
+              {error && (
+                <div className="text-sm text-red-600 mb-2">{error}</div>
+              )}
+              {!payslips.length && !loading && (
+                <div className="text-sm text-slate-500">
+                  No payslips loaded.
                 </div>
-                <div className="text-sm">
-                  Total Payroll (Net): <strong>{summary.totalPayout.toLocaleString()}</strong>
-                </div>
-                <div className="text-sm">
-                  Missing bank info: <strong>{summary.missing}</strong>
-                </div>
-                <div className="mt-2">
-                  <button onClick={() => handleGenerateConfirmed()} className="px-3 py-1 bg-blue-600 text-white rounded text-sm">
-                    Confirm Generate
+              )}
+              <div className="grid md:grid-cols-2 gap-3">
+                {payslips.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelectedPayslip(p)}
+                    className={`text-left p-3 rounded border transition-colors ${
+                      selectedPayslip?.id === p.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">
+                      {p.employee_name || p.employee_id_display}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {p.department || ''}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Net: {Number(p.net_pay || 0).toLocaleString()}
+                    </div>
                   </button>
-                </div>
+                ))}
+              </div>
+            </div>
+            {selectedPayslip && (
+              <div className="rounded border border-slate-200 dark:border-slate-700 p-4">
+                <ViewerLoader payslip={selectedPayslip} month={month} />
               </div>
             )}
           </div>
-        </aside>
-
+          {processing && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 20,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: '#333',
+                color: 'white',
+                padding: '12px 24px',
+                borderRadius: 8,
+                zIndex: 9999,
+                fontSize: '14px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              }}
+            >
+              {progress || 'Processing...'}
+            </div>
+          )}
+          <aside className="space-y-4">
+            <div className="p-4 shadow bg-slate-50 rounded">
+              <h3 className="font-semibold mb-2">Summary (Preview)</h3>
+              {!summary && (
+                <div className="text-sm text-slate-500">
+                  Load payslips to view totals.
+                </div>
+              )}
+              {summary && (
+                <div>
+                  <div className="text-sm">
+                    Employees: <strong>{summary.totalEmployees}</strong>
+                  </div>
+                  <div className="text-sm">
+                    Total Payroll (Net):{' '}
+                    <strong>{summary.totalPayout.toLocaleString()}</strong>
+                  </div>
+                  <div className="mt-2">
+                    <button
+                      onClick={() => handleGenerateConfirmed()}
+                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm"
+                    >
+                      Confirm Generate
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
       </div>
-    </div></>
+    </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // async function handleGenerateConfirmed() {
 //   if (!summary?.payrolls?.length) {

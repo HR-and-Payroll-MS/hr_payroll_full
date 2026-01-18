@@ -5,10 +5,10 @@ import { getLocalData } from '../Hooks/useLocalStorage';
 import DashboardSkeleton from '../animations/DashboardSkeleton';
 
 // Context Providers for Authenticated Users
-import { SocketProvider } from "../Context/SocketProvider";
-import { NotificationProvider } from "../Context/NotificationProvider";
-import { ProfileProvider } from "../Context/ProfileContext";
-import { TableProvider } from "../Context/TableContext";
+import { SocketProvider } from '../Context/SocketProvider';
+import { NotificationProvider } from '../Context/NotificationProvider';
+import { ProfileProvider } from '../Context/ProfileContext';
+import { TableProvider } from '../Context/TableContext';
 import { NetworkProvider } from '../Context/NetworkContext';
 import { AnnouncementProvider } from '../Context/AnnouncementContext';
 import { DataContextProvider } from '../Context/DataContextProvider';
@@ -41,8 +41,21 @@ export default function ProtectedRoutes({ allowedRoles }) {
     return <Navigate to="/login" replace />;
   }
 
-  // 4. Check if the user's role is allowed for this route
-  const hasAccess = allowedRoles.includes(auth?.user?.role);
+  // 4. Check if the user's role is allowed for this route (case/spacing tolerant)
+  const normalizeRole = (role) =>
+    (role || '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/-/g, '_');
+
+  const normalizedAllowed = allowedRoles.map(normalizeRole);
+  const userRoleNormalized = normalizeRole(auth?.user?.role);
+  const hasAccess =
+    allowedRoles.includes(auth?.user?.role) ||
+    normalizedAllowed.includes(userRoleNormalized) ||
+    normalizedAllowed.some((r) => userRoleNormalized.startsWith(r));
   if (!hasAccess) {
     return <Navigate to="/unauthorized" replace />;
   }
@@ -57,7 +70,7 @@ export default function ProtectedRoutes({ allowedRoles }) {
             <ProfileProvider>
               <DataContextProvider>
                 <TableProvider>
-                  <Outlet /> 
+                  <Outlet />
                 </TableProvider>
               </DataContextProvider>
             </ProfileProvider>
@@ -67,9 +80,6 @@ export default function ProtectedRoutes({ allowedRoles }) {
     </SocketProvider>
   );
 }
-
-
-
 
 // import React, { useEffect } from 'react';
 // import { Navigate, Outlet } from 'react-router-dom';
@@ -94,7 +104,7 @@ export default function ProtectedRoutes({ allowedRoles }) {
 //   }, [auth]);
 
 //   if (isAuthLoading) {
-//     return <DashboardSkeleton/> 
+//     return <DashboardSkeleton/>
 //   }
 
 //   if (!auth?.user) {

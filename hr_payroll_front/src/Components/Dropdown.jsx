@@ -1,80 +1,90 @@
-import useDropdown from "../Hooks/useDropdown";
-import { ChevronDown } from "lucide-react";
-import Icon from "./Icon";
-import { useState } from "react";
+import useDropdown from '../Hooks/useDropdown';
+import { ChevronDown } from 'lucide-react';
+import Icon from './Icon';
+import { useState } from 'react';
 
 export default function Dropdown({
-  text = "",
-  border = "border border-gray-300",
+  text = '',
+  border = 'border border-gray-300',
   options = [],
-  placeholder = "Select...",
-  padding="py-2.5",
+  placeholder = 'Select...',
+  padding = 'py-2.5',
   onChange,
   Svg,
-  width="w-full",
-  showIcons = false
+  width = 'w-full',
+  showIcons = false,
+  selectedLabel,
 }) {
   const { selected, isOpen, dropdownRef, toggleDropdown, selectItem } =
-    useDropdown();
+    useDropdown(selectedLabel, selectedLabel);
   const [icon, setIcon] = useState(Svg || null);
 
-  const handleSelect = (item, svg) => {
-    selectItem(item);
-    if(showIcons)setIcon(svg);
-    if (onChange) onChange(item);
+  const handleSelect = (option, svg) => {
+    const label = typeof option === 'string' ? option : option?.content;
+    selectItem(label);
+    if (showIcons) setIcon(svg);
+    const value =
+      typeof option === 'string' ? option : option?.value ?? option?.content;
+    if (onChange) onChange(value, option);
   };
 
   return (
     <div className={`relative ${width}  ${padding} `} ref={dropdownRef}>
       <button
-        type="button" 
+        type="button"
         onClick={toggleDropdown}
         className={`w-full ${text} flex text-nowrap text-slate-700 dark:text-slate-200 items-center gap-1 justify-between ${border} rounded-lg px-4 ${padding} hover:border-slate-400 transition`}
       >
         {icon ? <Icon className="w-4 h-4" name={icon} /> : null}
-        <span className={`text-slate-700 dark:text-slate-200  ${selected ? "text-gray-900 dark:text-slate-100" : "text-slate-800 dark:text-slate-200"}`}>
+        <span
+          className={`text-slate-700 dark:text-slate-200  ${
+            selected
+              ? 'text-gray-900 dark:text-slate-100'
+              : 'text-slate-800 dark:text-slate-200'
+          }`}
+        >
           {selected || placeholder}
         </span>
         <ChevronDown
           className={`w-4 h-4 text-gray-500 transition-transform ${
-            isOpen ? "rotate-180" : ""
+            isOpen ? 'rotate-180' : ''
           }`}
         />
       </button>
 
       {isOpen && (
-  <ul className="absolute z-10 text-nowrap mt-2 w-full min-w-fit bg-white dark:bg-slate-700 rounded-sm shadow-lg max-h-56 overflow-y-auto hover-bar">
-    {options && options.length > 0 ? (
-      options.map((item, index) => {
-        // normalize item: if it's a string, turn it into an object with content
-        const option = typeof item === "string" ? { content: item } : item;
+        <ul className="absolute z-10 text-nowrap mt-2 w-full min-w-fit bg-white dark:bg-slate-700 rounded-sm shadow-lg max-h-56 overflow-y-auto hover-bar">
+          {options && options.length > 0 ? (
+            options.map((item, index) => {
+              // normalize item: if it's a string, turn it into an object with content
+              const option =
+                typeof item === 'string' ? { content: item } : item;
 
-        return (
-          <li
-            key={index}
-            onClick={() => handleSelect(option?.content, option?.svg)}
-            className={`px-4 flex gap-1 ${text} text-slate-700 dark:text-slate-200 py-2 cursor-pointer dark:hover:text-slate-800 dark:hover:border-slate-800 hover:bg-slate-100 ${
-              selected === option?.content
-                ? "bg-slate-100 dark:bg-green-800 dark:text-slate-200 text-slate-600"
-                : ""
-            }`}
-          >
-            {option?.svg && <Icon className="w-4 h-4" name={option?.svg} />}
-            {option?.content}
-          </li>
-        );
-      })
-    ) : (
-      <li className="px-4 py-2 text-gray-400">No options</li>
-    )}
-  </ul>
-)}
-
+              return (
+                <li
+                  key={index}
+                  onClick={() => handleSelect(option, option?.svg)}
+                  className={`px-4 flex gap-1 ${text} text-slate-700 dark:text-slate-200 py-2 cursor-pointer dark:hover:text-slate-800 dark:hover:border-slate-800 hover:bg-slate-100 ${
+                    selected === option?.content
+                      ? 'bg-slate-100 dark:bg-green-800 dark:text-slate-200 text-slate-600'
+                      : ''
+                  }`}
+                >
+                  {option?.svg && (
+                    <Icon className="w-4 h-4" name={option?.svg} />
+                  )}
+                  {option?.content}
+                </li>
+              );
+            })
+          ) : (
+            <li className="px-4 py-2 text-gray-400">No options</li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }
-
-
 
 /*       how to use
     const viewOptions = 

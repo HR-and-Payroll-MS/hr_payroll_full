@@ -112,7 +112,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
             
             return Response({
                 'message': f'Generated {len(payslips)} payslips for {period.month} {period.year}',
-                'period': PayrollPeriodSerializer(period).data
+                'period': PayrollPeriodSerializer(period, context={'request': request}).data
             })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -133,7 +133,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
             
             return Response({
                 'message': f'Payroll submitted for HR approval',
-                'period': PayrollPeriodSerializer(period).data
+                'period': PayrollPeriodSerializer(period, context={'request': request}).data
             })
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -167,7 +167,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
             
             return Response({
                 'message': f'Payroll approved',
-                'period': PayrollPeriodSerializer(period).data
+                'period': PayrollPeriodSerializer(period, context={'request': request}).data
             })
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -207,7 +207,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
             
             return Response({
                 'message': f'Payroll rolled back',
-                'period': PayrollPeriodSerializer(period).data
+                'period': PayrollPeriodSerializer(period, context={'request': request}).data
             })
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -230,7 +230,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
             
             return Response({
                 'message': f'Payroll finalized. Notifications sent to {period.payslips.count()} employees.',
-                'period': PayrollPeriodSerializer(period).data
+                'period': PayrollPeriodSerializer(period, context={'request': request}).data
             })
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -265,7 +265,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
             new_status='draft'
         )
 
-        return Response({'message': 'Payroll reopened to draft', 'period': PayrollPeriodSerializer(period).data})
+        return Response({'message': 'Payroll reopened to draft', 'period': PayrollPeriodSerializer(period, context={'request': request}).data})
     
     def _notify_hr_managers(self, period, title, message):
         """Send notification to all HR Managers."""
@@ -354,7 +354,7 @@ class PayslipViewSet(viewsets.ModelViewSet):
         
         return Response({
             'message': f'Notification sent to {payslip.employee.fullname}',
-            'payslip': PayslipSerializer(payslip).data
+            'payslip': PayslipSerializer(payslip, context={'request': request}).data
         })
 
     @action(detail=True, methods=['post'], url_path='regenerate')
@@ -434,10 +434,79 @@ class PayslipViewSet(viewsets.ModelViewSet):
 
             return Response({
                 'message': 'Payslip regenerated successfully',
-                'payslip': PayslipSerializer(payslip).data
+                'payslip': PayslipSerializer(payslip, context={'request': request}).data
             })
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'], url_path='apply-adjustment')
+    def apply_adjustment(self, request, pk=None):
+        """Apply a manual adjustment to a single payslip and record it in details.adjustmentApplied.
+        Positive numbers increase pay; negative numbers decrease pay. Gross and net are moved together by the amount.
+        """
+        payslip = self.get_object()
+        period = payslip.period
+
+        # Only allow before finalization
+        if period.status == 'finalized':
+            return Response({'error': 'Cannot adjust a finalized payslip'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Permissions: Payroll or HR
+        user = request.user
+        is_payroll_or_hr = (
+            user.is_superuser
+            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__icontains='PAYROLL').exists()
+            or user.groups.filter(name__iexact='HR Manager').exists()
+            or user.groups.filter(name__icontains='HR').exists()
+        )
+        if not is_payroll_or_hr:
+            return Response({'error': 'Only Payroll or HR can adjust payslips'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            amt = Decimal(str(request.data.get('amount', 0) or 0)).quantize(Decimal('0.01'))
+        except Exception:
+            return Response({'error': 'Invalid amount'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if amt == 0:
+            return Response({'error': 'Amount must be non-zero'}, status=status.HTTP_400_BAD_REQUEST)
+
+        note = request.data.get('note', '')
+
+        # Update details.adjustmentApplied and optional notes
+        details = payslip.details or {}
+        current_adj = Decimal(str(details.get('adjustmentApplied', 0) or 0)).quantize(Decimal('0.01'))
+        new_adj = (current_adj + amt).quantize(Decimal('0.01'))
+        details['adjustmentApplied'] = float(new_adj)
+
+        if note:
+            notes_list = details.get('adjustmentNotes', [])
+            if not isinstance(notes_list, list):
+                notes_list = []
+            notes_list.append({'note': note, 'amount': float(amt)})
+            details['adjustmentNotes'] = notes_list
+
+        # Move gross and net together by the adjustment amount
+        payslip.gross_pay = (Decimal(str(payslip.gross_pay)) + amt).quantize(Decimal('0.01'))
+        payslip.net_pay = (Decimal(str(payslip.net_pay)) + amt).quantize(Decimal('0.01'))
+        payslip.details = details
+        payslip.save()
+
+        # Log action (without status change)
+        PayrollApprovalLog.objects.create(
+            period=period,
+            action='manual_adjustment',
+            performed_by=getattr(user, 'employee', None),
+            notes=f"Adjustment {amt} applied. {note}".strip(),
+            previous_status=period.status,
+            new_status=period.status,
+        )
+
+        return Response({
+            'message': 'Adjustment applied',
+            'adjustmentApplied': float(new_adj),
+            'payslip': PayslipSerializer(payslip, context={'request': request}).data,
+        })
 
     @action(detail=True, methods=['post'], url_path='set-adjustment')
     def set_adjustment(self, request, pk=None):
@@ -483,7 +552,7 @@ class MyPayslipsView(APIView):
         ).select_related('period', 'tax_code', 'tax_code_version').order_by('-period__year', '-period__month')
         
         return Response({
-            'results': PayslipSerializer(payslips, many=True).data
+            'results': PayslipSerializer(payslips, many=True, context={'request': request}).data
         })
 
 
@@ -499,7 +568,7 @@ class PayrollReportsView(APIView):
         if month and year:
             queryset = queryset.filter(period__month=month, period__year=year)
         
-        return Response({'results': PayslipSerializer(queryset, many=True).data})
+        return Response({'results': PayslipSerializer(queryset, many=True, context={'request': request}).data})
 
 
 
@@ -517,7 +586,7 @@ class TaxCodeViewSet(viewsets.ModelViewSet):
     - PUT /payroll/tax-codes/{id}/ - Update tax code
     - DELETE /payroll/tax-codes/{id}/ - Delete tax code
     """
-    queryset = TaxCode.objects.prefetch_related('versions', 'allowances', 'deductions').all()
+    queryset = TaxCode.objects.prefetch_related('versions', 'versions__allowances', 'allowances', 'deductions').all()
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -541,6 +610,17 @@ class TaxCodeVersionViewSet(viewsets.ModelViewSet):
     queryset = TaxCodeVersion.objects.prefetch_related('tax_brackets').all()
     serializer_class = TaxCodeVersionSerializer
     permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        """Create version and broadcast a payroll notification."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        self._notify_new_version(serializer.instance, request.user)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -548,6 +628,38 @@ class TaxCodeVersionViewSet(viewsets.ModelViewSet):
         if tax_code:
             queryset = queryset.filter(tax_code_id=tax_code)
         return queryset
+
+    def _notify_new_version(self, version, user):
+        """Notify Payroll/HR users when a new tax code version is created."""
+        from django.contrib.auth import get_user_model
+
+        try:
+            User = get_user_model()
+            sender_emp = getattr(user, 'employee', None)
+
+            recipients = User.objects.filter(
+                groups__name__in=['Payroll', 'Payroll Officer', 'HR Manager']
+            ).distinct()
+
+            title = f"New Tax Code Version v{version.version}"
+            code_name = getattr(version.tax_code, 'name', None) or 'Tax Code'
+            message = f"{code_name} updated. Valid from {version.valid_from}."
+
+            for u in recipients:
+                recipient_emp = getattr(u, 'employee', None)
+                if not recipient_emp:
+                    continue
+                Notification.objects.create(
+                    recipient=recipient_emp,
+                    sender=sender_emp,
+                    title=title,
+                    message=message,
+                    notification_type='payroll',
+                    link='/Payroll/GeneratePayroll'
+                )
+        except Exception as notify_err:
+            # Avoid breaking creation if notifications fail; log to console for debugging.
+            print('Notification dispatch failed for tax code version:', notify_err)
 
 
 class TaxBracketViewSet(viewsets.ModelViewSet):
@@ -577,7 +689,7 @@ class AllowanceViewSet(viewsets.ModelViewSet):
     - PUT /payroll/allowances/{id}/ - Update allowance
     - DELETE /payroll/allowances/{id}/ - Delete allowance
     """
-    queryset = Allowance.objects.select_related('tax_code').all()
+    queryset = Allowance.objects.select_related('tax_code', 'tax_code_version').all()
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -595,6 +707,10 @@ class AllowanceViewSet(viewsets.ModelViewSet):
         tax_code = self.request.query_params.get('tax_code')
         if tax_code:
             queryset = queryset.filter(tax_code_id=tax_code)
+        # Filter by tax code version
+        version = self.request.query_params.get('tax_code_version') or self.request.query_params.get('version')
+        if version:
+            queryset = queryset.filter(tax_code_version_id=version)
         return queryset
 
 
