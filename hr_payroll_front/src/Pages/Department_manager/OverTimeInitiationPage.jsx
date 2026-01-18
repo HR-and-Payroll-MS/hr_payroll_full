@@ -104,7 +104,7 @@ const OvertimeInitiationPage = () => {
   };
 
   return (
-    <div className="bg-gray-50 min-h-screen px-4 py-8 font-sans relative">
+    <div className="bg-gray-50 dark:bg-slate-700 min-h-screen px-4 py-8 font-sans relative transition-colors duration-200">
       {/* Local Toast Notification */}
       {toast.show && (
         <div
@@ -138,44 +138,44 @@ const OvertimeInitiationPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: General Info */}
           <div className="lg:col-span-1 space-y-4">
-            <section className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            <section className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
                 Overtime Settings
               </h2>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Select Date
                   </label>
                   <input
                     type="date"
-                    className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-blue-500 outline-none"
+                    className="w-full bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600 rounded-md border p-2 text-sm focus:ring-blue-500 outline-none text-gray-900 dark:text-white dark:[color-scheme:dark]"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Number of Hours
                   </label>
                   <input
                     type="number"
                     placeholder="e.g. 2"
-                    className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-blue-500 outline-none"
+                    className="w-full bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600 rounded-md border p-2 text-sm focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
                     value={hours}
                     onChange={(e) => setHours(e.target.value)}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     Reason / Justification
                   </label>
                   <textarea
                     rows="3"
-                    className="w-full border-gray-300 rounded-md border p-2 text-sm focus:ring-blue-500 outline-none"
+                    className="w-full bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600 rounded-md border p-2 text-sm focus:ring-blue-500 outline-none text-gray-900 dark:text-white"
                     placeholder="Why is this OT needed?"
                     value={justification}
                     onChange={(e) => setJustification(e.target.value)}
@@ -187,49 +187,49 @@ const OvertimeInitiationPage = () => {
 
           {/* Right: Employee Selection */}
           <div className="lg:col-span-2 space-y-4">
-            <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                <h2 className="text-lg font-semibold text-gray-800">
+            <section className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
+              <div className="p-4 border-b border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
                   Assign To Employees
                 </h2>
                 <input
                   type="text"
                   placeholder="Filter by name..."
-                  className="w-full sm:w-64 p-2 border border-gray-300 rounded-lg text-sm outline-none"
+                  className="w-full sm:w-64 p-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-sm outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
 
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-96 overflow-y-auto hover-bar scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-600">
                 {loading ? (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-8 text-center text-gray-500 dark:text-slate-400">
                     Loading team members...
                   </div>
                 ) : employees.length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-8 text-center text-gray-500 dark:text-slate-400">
                     No employees found in your department.
                   </div>
                 ) : (
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50 sticky top-0">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                    <thead className="bg-gray-50 dark:bg-slate-700 sticky top-0">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
                           Select
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
                           Name
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
                           Role
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
                       {filteredEmployees.map((emp) => (
                         <tr
                           key={emp.id}
-                          className="hover:bg-gray-50 cursor-pointer"
+                          className="hover:bg-gray-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors"
                           onClick={() => toggleEmployee(emp.id)}
                         >
                           <td className="px-6 py-4">
@@ -237,13 +237,13 @@ const OvertimeInitiationPage = () => {
                               type="checkbox"
                               checked={selectedEmployees.includes(emp.id)}
                               onChange={() => {}} // Handled by tr onClick
-                              className="h-4 w-4 text-blue-600 rounded cursor-pointer"
+                              className="h-4 w-4 text-blue-600 rounded cursor-pointer accent-blue-600"
                             />
                           </td>
-                          <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                          <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
                             {emp.name}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">
+                          <td className="px-6 py-4 text-sm text-gray-500 dark:text-slate-400">
                             {emp.role}
                           </td>
                         </tr>
@@ -263,7 +263,7 @@ const OvertimeInitiationPage = () => {
                   setJustification('');
                   setSelectedEmployees([]);
                 }}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+                className="px-6 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                 disabled={submitting}
               >
                 Cancel
@@ -275,7 +275,7 @@ const OvertimeInitiationPage = () => {
                   ${
                     isFormValid && !submitting
                       ? 'bg-blue-600 hover:bg-blue-700 shadow-md active:scale-95'
-                      : 'bg-gray-300 cursor-not-allowed'
+                      : 'bg-gray-300 dark:bg-slate-700 dark:text-slate-500 cursor-not-allowed'
                   }`}
               >
                 {submitting ? 'Processing...' : 'Confirm Overtime'}

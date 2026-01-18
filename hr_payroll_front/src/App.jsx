@@ -112,12 +112,15 @@ function App() {
     </Route>
   );
   const sharedHelpRoutes = (
-    <Route path="HelpCenter" element={<HelpCenter />}>
-      <Route path="shortcut" element={<ShortCut />} />
-      <Route path="ChangePassword" element={<ChangePassword />} />
-      <Route path="ORG_chart_page" element={<OrgChartPage />} />
-      <Route path="FAQ" element={<FAQPage />} />
-    </Route>
+    <>
+      <Route path="HelpCenter" element={<HelpCenter />}>
+        <Route path="shortcut" element={<ShortCut />} />
+        <Route path="ChangePassword" element={<ChangePassword />} />
+        <Route path="ORG_chart_page" element={<OrgChartPage />} />
+        <Route path="FAQ" element={<FAQPage />} />
+        <Route path="policies" element={<Policy />} />
+      </Route>
+    </>
   );
   const sharedNotificationRoutes = (
     <>
@@ -223,7 +226,7 @@ function App() {
             <Route path="Payroll_report" element={<PayrollReportsPage />} />
             <Route path="MyPayroll" element={<MyPayrollPage />} />
             <Route path="my-payslips" element={<MyPayslipsPage />} />
-            <Route path="policies" element={<Policy />} />
+
             {/* <Route path="logout" element={<LogOut />} /> */}
             <Route path="profile" element={<MyProfile />} />
             {/* <Route path="send_notification_page" element={<SendNotificationPage/>} /> */}
@@ -325,7 +328,7 @@ function App() {
             />
             <Route path="my-department" element={<MyDepartment />} />
             <Route path="my-payslips" element={<MyPayslipsPage />} />
-            <Route path="policies" element={<Policy />} />
+
             <Route path="message" element={<ChatIndex />} />
           </Route>
         </Route>
@@ -367,7 +370,7 @@ function App() {
             <Route path="Announcement" element={<AnnouncementsPage />} />
             <Route path="Payroll_report" element={<PayrollReportsPage />} />
             <Route path="MyPayroll" element={<MyPayrollPage />} />
-            <Route path="policies" element={<Policy />} />
+
             <Route path="profile" element={<MyProfile />} />
             <Route path="Employee" element={<Employee />}>
               <Route path="ManageEmployee" element={<ManageEmployee />} />

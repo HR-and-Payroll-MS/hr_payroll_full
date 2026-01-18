@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Announcement, AnnouncementAttachment
+from .models import Announcement, AnnouncementAttachment, AnnouncementView
 from .serializers import AnnouncementSerializer
 
 class AnnouncementViewSet(viewsets.ModelViewSet):
@@ -15,9 +15,28 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='track-view')
     def track_view(self, request, pk=None):
         announcement = self.get_object()
-        announcement.views += 1
-        announcement.save(update_fields=['views'])
-        print(f"DEBUG: track_view hit for announcement {announcement.id}, new views: {announcement.views}")
+        user = request.user
+        
+        # Check if user already viewed
+        if not AnnouncementView.objects.filter(announcement=announcement, user=user).exists():
+           AnnouncementView.objects.create(announcement=announcement, user=user)
+           announcement.views += 1
+           announcement.save(update_fields=['views'])
+           print(f"DEBUG: Unique view tracked for announcement {announcement.id} by {user.username}. New views: {announcement.views}")
+           
+           # Emit socket event for live view update
+           try:
+               from config.socket_app import sio
+               sio.emit('announcement_view_update', {
+                   'id': announcement.id,
+                   'views': announcement.views
+               })
+           except Exception as e:
+               print(f"Socket emit error for view update: {e}")
+
+        else:
+           print(f"DEBUG: Duplicate view attempt for announcement {announcement.id} by {user.username}.")
+
         return Response({'status': 'view tracked', 'views': announcement.views})
 
     def destroy(self, request, *args, **kwargs):

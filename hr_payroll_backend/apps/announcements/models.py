@@ -32,3 +32,13 @@ class AnnouncementAttachment(models.Model):
 
     def __str__(self):
         return f"Attachment for {self.announcement.title}"
+
+
+class AnnouncementView(models.Model):
+    announcement = models.ForeignKey(Announcement, on_delete=models.CASCADE, related_name='view_interactions')
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE)
+    viewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'announcement_views'
+        unique_together = ('announcement', 'user')

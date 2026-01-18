@@ -619,7 +619,7 @@ function GeneratePayroll() {
   const LoadingOverlay = ({ show }) => {
     if (!show) return null;
     return (
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-white/80 dark:bg-slate-900/80">
+      <div className="absolute inset-0 z-40 flex items-center justify-center bg-white/70 dark:bg-slate-900/70">
         <div className="flex items-center gap-3 text-slate-600 dark:text-slate-200 text-sm font-semibold">
           <RefreshCw size={18} className="animate-spin" /> Loading...
         </div>
@@ -649,7 +649,6 @@ function GeneratePayroll() {
 
   return (
     <div className="h-full dark:bg-slate-900 flex flex-col w-full text-slate-900 font-sans">
-      <LoadingOverlay show={loading} />
       <Header
         className={
           'bg-white dark:shadow-slate-900 dark:shadow-md dark:inset-shadow-xs dark:inset-shadow-slate-600 dark:bg-slate-800 px-6'
@@ -788,6 +787,7 @@ function GeneratePayroll() {
       </Header>
 
       <main className="h-screen relative overflow-y-scroll hover-bar dark:bg-slate-950 bg-slate-100 flex flex-col p-2 gap-2">
+        <LoadingOverlay show={loading} />
         {/* COLLAPSIBLE METRICS */}
         <div className="flex flex-col shrink-0">
           {!isMetricsExpanded && (

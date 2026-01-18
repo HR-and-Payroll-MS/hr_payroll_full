@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import useAuth from "./AuthContext";
-import { useSocket } from "./SocketProvider";
+import { createContext, useContext, useEffect, useState } from 'react';
+import useAuth from './AuthContext';
+import { useSocket } from './SocketProvider';
 
 const NotificationContext = createContext(null);
 
@@ -20,22 +20,31 @@ export function NotificationProvider({ children }) {
     let mounted = true;
 
     axiosPrivate
-      .get("notifications/")
+      .get('notifications/')
       .then((res) => {
         if (!mounted) return;
-        
+
+        // DEBUG: log raw backend payload so we can inspect link fields
+        console.log(
+          'notifications fetch raw response:',
+          res.data?.results || res.data
+        );
+
         // NORMALIZE DATA: Backend sends 'is_read', Frontend needs 'unread'
         const formatted = (res.data?.results || []).map((n) => ({
           ...n,
           unread: !n.is_read, // If is_read is false, unread is true
           createdAt: n.created_at || n.createdAt, // Handle both snake_case and camelCase
-          category: n.notification_type || 'info'
+          category: n.notification_type || 'info',
         }));
-        
+
+        // DEBUG: log formatted notifications so we can see the fields frontend will use
+        console.log('notifications formatted for UI:', formatted);
+
         setItems(formatted);
       })
       .catch((err) => {
-        console.error("Failed to fetch notifications:", err);
+        console.error('Failed to fetch notifications:', err);
       });
 
     return () => {
@@ -46,16 +55,16 @@ export function NotificationProvider({ children }) {
   /* 🔹 1.5 Fetch Sent Notifications */
   const fetchSent = async () => {
     try {
-      const res = await axiosPrivate.get("notifications/?type=sent");
+      const res = await axiosPrivate.get('notifications/?type=sent');
       const formatted = (res.data?.results || []).map((n) => ({
         ...n,
         unread: false, // Sent items aren't "unread" for the sender
         createdAt: n.created_at || n.createdAt,
-        category: n.notification_type || 'info'
+        category: n.notification_type || 'info',
       }));
       setSentItems(formatted);
     } catch (err) {
-      console.error("Failed to fetch sent notifications:", err);
+      console.error('Failed to fetch sent notifications:', err);
     }
   };
 
@@ -68,7 +77,7 @@ export function NotificationProvider({ children }) {
     if (!socket) return;
 
     const onNotification = (data) => {
-      console.log("Socket Notification Received:", data); // Debug log
+      console.log('Socket Notification Received:', data); // Debug log
 
       setItems((prev) => {
         // Prevent duplicates
@@ -77,10 +86,10 @@ export function NotificationProvider({ children }) {
         // FORCE 'unread: true' on new items
         const newItem = {
           ...data,
-          is_read: false,         // Backend standard
-          unread: true,           // Frontend standard (Vital for Red Dot)
+          is_read: false, // Backend standard
+          unread: true, // Frontend standard (Vital for Red Dot)
           createdAt: data.created_at || new Date().toISOString(),
-          category: data.type || data.notification_type || 'info'
+          category: data.type || data.notification_type || 'info',
         };
 
         // Add new item to the TOP of the list
@@ -88,10 +97,10 @@ export function NotificationProvider({ children }) {
       });
     };
 
-    socket.on("new_notification", onNotification);
+    socket.on('new_notification', onNotification);
 
     return () => {
-      socket.off("new_notification", onNotification);
+      socket.off('new_notification', onNotification);
     };
   }, [socket]);
 
@@ -99,23 +108,27 @@ export function NotificationProvider({ children }) {
   const markRead = async (id) => {
     // UI Update
     setItems((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, unread: false, is_read: true } : n))
+      prev.map((n) =>
+        n.id === id ? { ...n, unread: false, is_read: true } : n
+      )
     );
 
     // API Update
     try {
       await axiosPrivate.post(`notifications/${id}/mark-read/`);
     } catch (error) {
-      console.error("Error marking read:", error);
+      console.error('Error marking read:', error);
     }
   };
 
   const markAllRead = async () => {
-    setItems((prev) => prev.map((n) => ({ ...n, unread: false, is_read: true })));
+    setItems((prev) =>
+      prev.map((n) => ({ ...n, unread: false, is_read: true }))
+    );
     try {
-      await axiosPrivate.post("notifications/mark-all-read/");
+      await axiosPrivate.post('notifications/mark-all-read/');
     } catch (error) {
-      console.error("Error marking all read:", error);
+      console.error('Error marking all read:', error);
     }
   };
 
@@ -126,7 +139,7 @@ export function NotificationProvider({ children }) {
     try {
       await axiosPrivate.delete(`notifications/${id}/`);
     } catch (error) {
-      console.error("Error deleting notification:", error);
+      console.error('Error deleting notification:', error);
     }
   };
 
@@ -152,26 +165,12 @@ export function NotificationProvider({ children }) {
 export function useNotifications() {
   const ctx = useContext(NotificationContext);
   if (!ctx) {
-    throw new Error("useNotifications must be used inside NotificationProvider");
+    throw new Error(
+      'useNotifications must be used inside NotificationProvider'
+    );
   }
   return ctx;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import { createContext, useContext, useEffect, useState } from "react";
 // import useAuth from "./AuthContext";
@@ -273,4 +272,3 @@ export function useNotifications() {
 
 //   return ctx;
 // }
-
