@@ -99,7 +99,13 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing attendance records.
     """
-    queryset = Attendance.objects.select_related('employee', 'employee__department').all()
+    queryset = Attendance.objects.select_related(
+        'employee',
+        'employee__job_info',
+        'employee__job_info__department',
+        'employee__work_schedule_link',
+        'employee__work_schedule_link__work_schedule'
+    ).all()
     serializer_class = AttendanceSerializer
     permission_classes = [IsAuthenticated]
     

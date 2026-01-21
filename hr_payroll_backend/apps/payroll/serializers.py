@@ -48,18 +48,19 @@ class PayslipSerializer(serializers.ModelSerializer):
         return obj.employee.fullname
     
     def get_employee_id_display(self, obj):
-        return obj.employee.employee_id
+        return getattr(getattr(obj.employee, 'job_info', None), 'employee_code', None)
     
     def get_department(self, obj):
-        return obj.employee.department.name if obj.employee.department else None
+        return getattr(getattr(getattr(obj.employee, 'job_info', None), 'department', None), 'name', None)
     
     def get_job_title(self, obj):
-        return obj.employee.job_title
+        return getattr(getattr(obj.employee, 'job_info', None), 'job_title', None)
     
     def get_bank_account(self, obj):
         request = self.context.get('request') if hasattr(self, 'context') else None
-        bank = obj.employee.bank_name or ''
-        account = obj.employee.bank_account or ''
+        payroll = getattr(obj.employee, 'payroll_info', None)
+        bank = getattr(payroll, 'bank_name', '') or ''
+        account = getattr(payroll, 'bank_account', '') or ''
         full = f"{bank} {account}".strip()
 
         # Determine access: only HR Managers or the employee themselves (or superuser) may see full account

@@ -12,21 +12,25 @@ def leave_request_notification(sender, instance, created, **kwargs):
         # Notify Line Manager & Department Manager
         notified_users = {instance.employee.id}
         
+        ji = getattr(instance.employee, 'job_info', None)
+        line_manager = getattr(ji, 'line_manager', None)
+        dept = getattr(ji, 'department', None)
+
         # 1. Immediate Line Manager
-        if instance.employee.line_manager and instance.employee.line_manager.id not in notified_users:
+        if line_manager and line_manager.id not in notified_users:
             Notification.objects.create(
-                recipient=instance.employee.line_manager,
+                recipient=line_manager,
                 sender=instance.employee,
                 title="New Leave Request",
                 message=f"{instance.employee.fullname} has submitted a {instance.leave_type} leave request.",
                 notification_type='leave',
                 link=f"/leaves/{instance.id}"
             )
-            notified_users.add(instance.employee.line_manager.id)
+            notified_users.add(line_manager.id)
             
         # 2. Department Manager
-        if instance.employee.department and instance.employee.department.manager:
-            dept_manager = instance.employee.department.manager
+        if dept and dept.manager:
+            dept_manager = dept.manager
             if dept_manager.id not in notified_users:
                 Notification.objects.create(
                     recipient=dept_manager,

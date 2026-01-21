@@ -28,7 +28,9 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             return queryset
 
         # Otherwise, they only see their own department
-        if hasattr(user, 'employee') and user.employee.department_id:
-            return queryset.filter(id=user.employee.department_id)
+        if hasattr(user, 'employee'):
+            dept_id = getattr(getattr(user.employee, 'job_info', None), 'department_id', None)
+            if dept_id:
+                return queryset.filter(id=dept_id)
             
         return queryset.none()

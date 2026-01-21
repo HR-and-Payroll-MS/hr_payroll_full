@@ -28,14 +28,14 @@ def verify_persistence():
         print(f"DEBUG: Today is {today}. Testing Department: {dept.name} (ID: {dept.id})")
         
         # Count current records for today in this department
-        initial_count = Attendance.objects.filter(employee__department=dept, date=today).count()
+        initial_count = Attendance.objects.filter(employee__job_info__department=dept, date=today).count()
         print(f"Initial attendance records for today in this dept: {initial_count}")
         
         # SIMULATE THE VIEW LOGIC (Replicating the code I just added to the view)
-        employees = Employee.objects.filter(department=dept).filter(
-            Q(join_date__lte=target_date_str) | Q(join_date__isnull=True)
+        employees = Employee.objects.filter(job_info__department=dept).filter(
+            Q(job_info__join_date__lte=target_date_str) | Q(job_info__join_date__isnull=True)
         ).filter(
-            Q(last_working_date__isnull=True) | Q(last_working_date__gte=target_date_str)
+            Q(payroll_info__last_working_date__isnull=True) | Q(payroll_info__last_working_date__gte=target_date_str)
         )
         
         eligible_count = employees.count()
@@ -66,7 +66,7 @@ def verify_persistence():
             print("No missing employees found (Persistence already handled or all clocked in).")
             
         # Final count
-        final_count = Attendance.objects.filter(employee__department=dept, date=today).count()
+        final_count = Attendance.objects.filter(employee__job_info__department=dept, date=today).count()
         print(f"Final attendance records for today in this dept: {final_count}")
         
         if final_count >= eligible_count:

@@ -54,7 +54,9 @@ class EvaluationSubmitView(APIView):
             is_line_manager = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
             if is_line_manager:
                 target_emp = Employee.objects.get(id=employee_id)
-                if target_emp.department_id != user.employee.department_id:
+                target_dept_id = getattr(getattr(target_emp, 'job_info', None), 'department_id', None)
+                user_dept_id = getattr(getattr(user.employee, 'job_info', None), 'department_id', None) if hasattr(user, 'employee') else None
+                if target_dept_id != user_dept_id:
                     return Response({"error": "You can only submit evaluations for your own department"}, status=403)
             else:
                 return Response({"error": "You don't have permission to submit evaluations"}, status=403)
@@ -76,7 +78,13 @@ class EvaluationSubmitView(APIView):
         return Response({"message": msg, "data": serializer.data}, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 class EfficiencyEvaluationViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = EfficiencyEvaluation.objects.all().select_related('employee', 'evaluator', 'template', 'employee__department')
+    queryset = EfficiencyEvaluation.objects.all().select_related(
+        'employee',
+        'employee__job_info',
+        'employee__job_info__department',
+        'evaluator',
+        'template'
+    )
     serializer_class = EfficiencyEvaluationSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = None
@@ -96,8 +104,9 @@ class EfficiencyEvaluationViewSet(viewsets.ReadOnlyModelViewSet):
         
         if is_line_manager and hasattr(user, 'employee'):
             # Only see evaluations for their department
-            if user.employee.department_id:
-                return queryset.filter(employee__department_id=user.employee.department_id)
+            dept_id = getattr(getattr(user.employee, 'job_info', None), 'department_id', None)
+            if dept_id:
+                return queryset.filter(employee__job_info__department_id=dept_id)
             return queryset.none()
             
         # Regular employees see only their own

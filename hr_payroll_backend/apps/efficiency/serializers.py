@@ -42,13 +42,14 @@ class EfficiencyEvaluationSerializer(serializers.ModelSerializer):
         return None
 
     def get_employee_email(self, obj):
-        return obj.employee.email if obj.employee else None
+        return getattr(getattr(obj.employee, 'general_info', None), 'email', None) if obj.employee else None
 
     def get_employee_job_title(self, obj):
-        return obj.employee.job_title if obj.employee else None
+        return getattr(getattr(obj.employee, 'job_info', None), 'job_title', None) if obj.employee else None
     
     def get_department_name(self, obj):
-        return obj.employee.department.name if obj.employee and obj.employee.department else 'General'
+        dept = getattr(getattr(getattr(obj.employee, 'job_info', None), 'department', None), 'name', None) if obj.employee else None
+        return dept or 'General'
     
     def get_evaluator_name(self, obj):
         return obj.evaluator.fullname if obj.evaluator else None
@@ -65,4 +66,4 @@ class EfficiencyEvaluationSerializer(serializers.ModelSerializer):
         return None
 
     def get_evaluator_job_title(self, obj):
-        return obj.evaluator.job_title if obj.evaluator else None
+        return getattr(getattr(obj.evaluator, 'job_info', None), 'job_title', None) if obj.evaluator else None

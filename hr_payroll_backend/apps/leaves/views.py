@@ -31,12 +31,13 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         """Check if employee is a department manager or has managerial role."""
         if not employee:
             return False
-        job_title = getattr(employee, 'position', '') or ''
+        ji = getattr(employee, 'job_info', None)
+        job_title = (getattr(ji, 'job_title', '') or getattr(ji, 'position', '') or '')
         # Check by title
         if 'MANAGER' in job_title.upper() or 'HR' in job_title.upper():
             return True
         # Check by relationship
-        if employee.direct_reports.exists():
+        if hasattr(employee, 'managed_job_infos') and employee.managed_job_infos.exists():
             return True
         if employee.managed_departments.exists():
             return True
@@ -87,11 +88,11 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                 # 2. Requests from employees in departments they manage
                 # 3. Their OWN requests (for viewing, not approving)
                 
-                filter_condition = Q(employee__line_manager=current_employee)
+                filter_condition = Q(employee__job_info__line_manager=current_employee)
                 
                 managed_departments = current_employee.managed_departments.all()
                 if managed_departments.exists():
-                    filter_condition |= Q(employee__department__in=managed_departments)
+                    filter_condition |= Q(employee__job_info__department__in=managed_departments)
                 
                 # Include own requests for viewing
                 filter_condition |= Q(employee=current_employee)
@@ -108,13 +109,13 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         
         # By title
         managers_by_title = Employee.objects.filter(
-            Q(position__icontains='manager') | Q(position__icontains='HR')
+            Q(job_info__position__icontains='manager') | Q(job_info__position__icontains='HR')
         ).values_list('id', flat=True)
         manager_ids.update(managers_by_title)
         
         # By direct reports
         managers_with_reports = Employee.objects.filter(
-            direct_reports__isnull=False
+            managed_job_infos__isnull=False
         ).distinct().values_list('id', flat=True)
         manager_ids.update(managers_with_reports)
         
@@ -145,7 +146,8 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             return None
         
         employee = user.employee
-        job_title = getattr(employee, 'position', '') or ''
+        ji = getattr(employee, 'job_info', None)
+        job_title = (getattr(ji, 'job_title', '') or getattr(ji, 'position', '') or '')
         print(f"DEBUG: Role detection - user {user.username}, position: {job_title}")
         
         # 3. Check if HR Manager
@@ -158,13 +160,14 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             print(f"DEBUG: Role detection - user {user.username} identified as Manager")
             return 'Manager'
             
-        if employee.direct_reports.exists():
+        if hasattr(employee, 'managed_job_infos') and employee.managed_job_infos.exists():
             return 'Manager'
         
         if employee.managed_departments.exists():
             return 'Manager'
         
-        if employee.department and employee.department.manager == employee:
+        dept = getattr(ji, 'department', None)
+        if dept and dept.manager == employee:
             return 'Manager'
         
         return None
@@ -184,8 +187,9 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                 # Check Maternity Eligibility
                 if leave_type == 'maternity':
                     min_months = eligibility.get('maternityMinServiceMonths', 0)
-                    if employee.join_date:
-                        days_service = (timezone.now().date() - employee.join_date).days
+                    join_date = getattr(getattr(employee, 'job_info', None), 'join_date', None)
+                    if join_date:
+                        days_service = (timezone.now().date() - join_date).days
                         months_service = days_service // 30  # Approximate
                         if months_service < min_months:
                             from rest_framework.exceptions import ValidationError

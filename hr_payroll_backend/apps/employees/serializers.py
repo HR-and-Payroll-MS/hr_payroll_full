@@ -50,7 +50,10 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
         return None
 
     def get_uploaded_by_job_title(self, obj):
-        return obj.uploaded_by.job_title if obj.uploaded_by else None
+        if not obj.uploaded_by:
+            return None
+        ji = getattr(obj.uploaded_by, 'job_info', None)
+        return getattr(ji, 'job_title', None)
 
 
 class EmployeeGeneralSerializer(serializers.Serializer):
@@ -323,6 +326,18 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         general_dict = validated_data.pop('general', None)
         job_dict = validated_data.pop('job', None)
         payroll_dict = validated_data.pop('payroll', None)
+        request = self.context.get('request')
+        raw = getattr(request, 'data', {}) if request else {}
+
+        def _get_raw(key, default=None):
+            if hasattr(raw, 'getlist'):
+                vals = raw.getlist(key)
+                if vals:
+                    return vals[0]
+            v = raw.get(key, default)
+            if isinstance(v, list):
+                return v[0] if v else default
+            return v
 
         with transaction.atomic():
             employee = Employee.objects.create(**validated_data)
@@ -330,70 +345,92 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
             # Users partitions: general, address, emergency
             EmployeeGeneralInfo.objects.create(
                 employee=employee,
-                gender=(general_dict or {}).get('gender', employee.gender),
-                date_of_birth=(general_dict or {}).get('dateofbirth', employee.date_of_birth),
-                marital_status=(general_dict or {}).get('maritalstatus', employee.marital_status),
-                nationality=(general_dict or {}).get('nationality', employee.nationality),
-                personal_tax_id=(general_dict or {}).get('personaltaxid', employee.personal_tax_id),
-                social_insurance=(general_dict or {}).get('socialinsurance', employee.social_insurance),
-                health_care=(general_dict or {}).get('healthinsurance', employee.health_care),
-                phone=(general_dict or {}).get('phonenumber', employee.phone),
-                email=(general_dict or {}).get('emailaddress', employee.email),
+                gender=(general_dict or {}).get('gender') or _get_raw('gender'),
+                date_of_birth=(general_dict or {}).get('date_of_birth') or _get_raw('date_of_birth'),
+                marital_status=(general_dict or {}).get('marital_status') or _get_raw('marital_status'),
+                nationality=(general_dict or {}).get('nationality') or _get_raw('nationality'),
+                personal_tax_id=(general_dict or {}).get('personal_tax_id') or _get_raw('personal_tax_id'),
+                social_insurance=(general_dict or {}).get('social_insurance') or _get_raw('social_insurance'),
+                health_care=(general_dict or {}).get('health_care') or _get_raw('health_care'),
+                phone=(general_dict or {}).get('phone') or _get_raw('phone'),
+                email=(general_dict or {}).get('email') or _get_raw('email'),
             )
             EmployeeAddressInfo.objects.create(
                 employee=employee,
-                primary_address=(general_dict or {}).get('primaryaddress', employee.primary_address),
-                country=(general_dict or {}).get('country', employee.country),
-                state=(general_dict or {}).get('state', employee.state),
-                city=(general_dict or {}).get('city', employee.city),
-                postcode=(general_dict or {}).get('postcode', employee.postcode),
+                primary_address=(general_dict or {}).get('primary_address') or _get_raw('primary_address'),
+                country=(general_dict or {}).get('country') or _get_raw('country'),
+                state=(general_dict or {}).get('state') or _get_raw('state'),
+                city=(general_dict or {}).get('city') or _get_raw('city'),
+                postcode=(general_dict or {}).get('postcode') or _get_raw('postcode'),
             )
             EmployeeEmergencyInfo.objects.create(
                 employee=employee,
-                fullname=(general_dict or {}).get('emefullname', employee.emergency_fullname),
-                phone=(general_dict or {}).get('emephonenumber', employee.emergency_phone),
-                relationship=employee.emergency_relationship,
-                state=employee.emergency_state,
-                city=employee.emergency_city,
-                postcode=employee.emergency_postcode,
+                fullname=(general_dict or {}).get('emergency_fullname') or _get_raw('emergency_fullname'),
+                phone=(general_dict or {}).get('emergency_phone') or _get_raw('emergency_phone'),
+                relationship=(general_dict or {}).get('emergency_relationship') or _get_raw('emergency_relationship'),
+                state=(general_dict or {}).get('emergency_state') or _get_raw('emergency_state'),
+                city=(general_dict or {}).get('emergency_city') or _get_raw('emergency_city'),
+                postcode=(general_dict or {}).get('emergency_postcode') or _get_raw('emergency_postcode'),
             )
 
             # Company partitions: job + contract
             # Generate employee code if missing
-            emp_code = (job_dict or {}).get('employeeid')
+            emp_code = (job_dict or {}).get('employee_code') or _get_raw('employee_code')
             if not emp_code:
                 last = EmployeeJobInfo.objects.order_by('-id').first()
                 next_num = (last.id + 1) if last else 1
                 emp_code = f"EMP{next_num:04d}"
+            # Resolve department (optional)
+            from apps.departments.models import Department
+            dept_id = (job_dict or {}).get('department') or _get_raw('department')
+            department = None
+            try:
+                if dept_id:
+                    department = Department.objects.filter(id=dept_id).first()
+            except Exception:
+                department = None
+
             EmployeeJobInfo.objects.create(
                 employee=employee,
                 employee_code=emp_code,
-                job_title=(job_dict or {}).get('jobtitle'),
-                position=(job_dict or {}).get('positiontype'),
-                employment_type=(job_dict or {}).get('employmenttype'),
-                join_date=(job_dict or {}).get('joindate'),
-                service_years=(job_dict or {}).get('serviceyear', 0),
+                job_title=(job_dict or {}).get('job_title') or _get_raw('job_title'),
+                position=(job_dict or {}).get('position') or _get_raw('position'),
+                employment_type=(job_dict or {}).get('employment_type') or _get_raw('employment_type'),
+                join_date=(job_dict or {}).get('join_date') or _get_raw('join_date'),
+                service_years=(job_dict or {}).get('service_years', _get_raw('service_years', 0)) or 0,
+                department=department,
             )
             EmployeeContractInfo.objects.create(
                 employee=employee,
-                contract_number=(job_dict or {}).get('contractnumber', employee.contract_number),
-                contract_name=(job_dict or {}).get('contractname', employee.contract_name),
-                contract_type=(job_dict or {}).get('contracttype', employee.contract_type),
-                contract_start_date=(job_dict or {}).get('startdate', employee.contract_start_date),
-                contract_end_date=(job_dict or {}).get('enddate', employee.contract_end_date),
+                contract_number=(job_dict or {}).get('contract_number') or _get_raw('contract_number'),
+                contract_name=(job_dict or {}).get('contract_name') or _get_raw('contract_name'),
+                contract_type=(job_dict or {}).get('contract_type') or _get_raw('contract_type'),
+                contract_start_date=(job_dict or {}).get('contract_start_date') or _get_raw('contract_start_date'),
+                contract_end_date=(job_dict or {}).get('contract_end_date') or _get_raw('contract_end_date'),
             )
 
             # Payroll partition
             EmployeePayrollInfo.objects.create(
                 employee=employee,
-                status=(payroll_dict or {}).get('employeestatus', 'Active'),
-                salary=(payroll_dict or {}).get('salary', 0),
-                last_working_date=(payroll_dict or {}).get('lastworkingdate'),
-                offset=(payroll_dict or {}).get('offset', 0),
-                one_off=(payroll_dict or {}).get('oneoff', 0),
-                bank_name=(payroll_dict or {}).get('bankname'),
-                bank_account=(payroll_dict or {}).get('bankaccount'),
+                status=(payroll_dict or {}).get('status') or _get_raw('status', 'Active'),
+                salary=(payroll_dict or {}).get('salary') or _get_raw('salary', 0),
+                last_working_date=(payroll_dict or {}).get('last_working_date') or _get_raw('last_working_date'),
+                offset=(payroll_dict or {}).get('offset') or _get_raw('offset', 0),
+                one_off=(payroll_dict or {}).get('one_off') or _get_raw('one_off', 0),
+                bank_name=(payroll_dict or {}).get('bank_name') or _get_raw('bank_name'),
+                bank_account=(payroll_dict or {}).get('bank_account') or _get_raw('bank_account'),
             )
+
+            # Work schedule link (optional)
+            from apps.attendance.models import EmployeeWorkScheduleLink, WorkSchedule
+            ws_id = (job_dict or {}).get('work_schedule') or _get_raw('work_schedule')
+            try:
+                if ws_id:
+                    link, _ = EmployeeWorkScheduleLink.objects.get_or_create(employee=employee)
+                    link.work_schedule = WorkSchedule.objects.filter(id=ws_id).first()
+                    link.save()
+            except Exception:
+                pass
 
             # Documents
             uploader = None

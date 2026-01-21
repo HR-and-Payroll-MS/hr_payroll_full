@@ -9,6 +9,7 @@ from .models import Employee
 import secrets
 import string
 from apps.notifications.models import Notification
+from apps.users.models import EmployeeGeneralInfo
 
 User = get_user_model()
 
@@ -45,12 +46,16 @@ def create_user_for_employee(sender, instance, created, **kwargs):
         # Create User
         # We must set the employee link IMMEDIATELY to prevent the User signal 
         # from trying to create ANOTHER employee (infinite loop prevention)
+        # Prefer email from partition if available; else fallback
+        general = getattr(instance, 'general_info', None)
+        partition_email = getattr(general, 'email', None) if general else None
+
         user = User(
             username=username,
-            email=instance.email or f"{username}@company.local",
+            email=partition_email or f"{username}@company.local",
             first_name=instance.first_name,
             last_name=instance.last_name,
-            employee=instance # Link strictly here
+            employee=instance  # Link strictly here
         )
         user.set_password(password)
         user.save()
@@ -58,6 +63,15 @@ def create_user_for_employee(sender, instance, created, **kwargs):
         # Assign 'Employee' group
         group, _ = Group.objects.get_or_create(name='Employee')
         user.groups.add(group)
+
+        # Backfill general_info.email if missing
+        try:
+            general = getattr(instance, 'general_info', None)
+            if general and not getattr(general, 'email', None):
+                general.email = user.email
+                general.save(update_fields=['email'])
+        except Exception:
+            pass
         
         print(f"SIGNAL: Created User {username} for Employee {instance.id}")
         print(f"CREDENTIALS: {username} / {password}")
@@ -86,17 +100,26 @@ def create_employee_for_user(sender, instance, created, **kwargs):
     post_save.disconnect(create_user_for_employee, sender=Employee)
     
     try:
+        # Create core employee; partition details managed in respective apps
         employee = Employee.objects.create(
             first_name=instance.first_name or instance.username,
             last_name=instance.last_name or "User",
-            email=instance.email,
-            job_title="New User",
-            status="Active"
         )
         
         # Link back to user
         instance.employee = employee
         instance.save()
+
+        # Create minimal general info partition with email if present
+        try:
+            if instance.email:
+                EmployeeGeneralInfo.objects.get_or_create(
+                    employee=employee,
+                    defaults={"email": instance.email}
+                )
+        except Exception:
+            # Non-blocking: partition creation failures shouldn't break user creation
+            pass
         
         # Assign 'Employee' group if not present
         if not instance.groups.exists():
@@ -156,7 +179,7 @@ def sync_user_groups(sender, instance, created, **kwargs):
     if user.is_staff or user.is_superuser or 'Admin' in current_group_names:
         # Just ensure they have the new groups too
         for group in target_groups:
-           user.groups.add(group)
+            user.groups.add(group)
     else:
         # For regular users, enforce the specific groups for the title
         user.groups.set(target_groups)
@@ -309,12 +332,12 @@ def notify_employee_changes(sender, instance, created, **kwargs):
             if new_date < today:
                 current = new_date
                 while current < today:
-                     Attendance.objects.get_or_create(
+                    Attendance.objects.get_or_create(
                         employee=instance,
                         date=current,
                         defaults={'status': 'absent'}
                     )
-                     current += timedelta(days=1)
+                    current += timedelta(days=1)
             return
 
         if old_date and new_date < old_date:

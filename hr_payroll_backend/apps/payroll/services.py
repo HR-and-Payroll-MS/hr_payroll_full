@@ -637,7 +637,7 @@ class PayrollCalculationService:
             })
 
         # Get department/role-based allowances scoped by version first
-        dept = employee.department.name if employee.department else None
+        dept = getattr(getattr(getattr(employee, 'job_info', None), 'department', None), 'name', None)
         scoped_allowances = Allowance.objects.filter(is_active=True)
         if version_id:
             scoped_allowances = scoped_allowances.filter(tax_code_version_id=version_id)
@@ -850,7 +850,7 @@ class PayrollCalculationService:
             })
         
         # Get mandatory deductions
-        dept = employee.department.name if employee.department else None
+        dept = getattr(getattr(getattr(employee, 'job_info', None), 'department', None), 'name', None)
         mandatory_deductions = Deduction.objects.filter(is_active=True, is_mandatory=True)
         
         for deduction in mandatory_deductions:

@@ -405,7 +405,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
              Employees removed from the chart are NOT deleted - they are just removed from the org chart.
         """
         if request.method == 'GET':
-            from apps.company.models import CompanyOrgNode
+            from apps.company.models import CompanyOrgNode, EmployeeJobInfo
             employees = Employee.objects.select_related('line_manager', 'department').all()
             org_nodes = CompanyOrgNode.objects.filter(in_org_chart=True)
 
@@ -478,9 +478,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     if emp:
                         emp.first_name = first
                         emp.last_name = last
-                        emp.job_title = role
-                        emp.department = dept
                         emp.save()
+                        ji, _ = EmployeeJobInfo.objects.get_or_create(employee=emp)
+                        ji.job_title = role
+                        ji.department = dept
+                        ji.save()
                         # Upsert org node
                         org, _ = CompanyOrgNode.objects.get_or_create(employee=emp)
                         org.in_org_chart = True
@@ -493,10 +495,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                     emp = Employee.objects.create(
                         first_name=first,
                         last_name=last,
-                        job_title=role,
-                        department=dept,
-                        status='Active',
                     )
+                    EmployeeJobInfo.objects.create(employee=emp, job_title=role, department=dept)
                     org = CompanyOrgNode.objects.create(employee=emp, in_org_chart=True, org_x=pos.get('x', 0), org_y=pos.get('y', 0))
                     uuid_map[client_id] = emp.id
 
@@ -516,41 +516,48 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 source_client_id = edge_map.get(client_id)
                 if source_client_id:
                     manager_db_id = uuid_map.get(source_client_id)
-                    emp.line_manager_id = manager_db_id if (manager_db_id and manager_db_id != db_id) else None
+                    ji, _ = EmployeeJobInfo.objects.get_or_create(employee=emp)
+                    ji.line_manager_id = manager_db_id if (manager_db_id and manager_db_id != db_id) else None
+                    ji.save()
                 else:
-                    emp.line_manager = None
-                emp.save()
+                    ji, _ = EmployeeJobInfo.objects.get_or_create(employee=emp)
+                    ji.line_manager = None
+                    ji.save()
 
             # Return updated nodes
-            updated_org_nodes = CompanyOrgNode.objects.filter(employee_id__in=chart_db_ids, in_org_chart=True).select_related('employee__department')
+            updated_org_nodes = CompanyOrgNode.objects.filter(employee_id__in=chart_db_ids, in_org_chart=True).select_related('employee__job_info__department')
             new_nodes = []
             new_edges = []
             for org in updated_org_nodes:
                 emp = org.employee
-                is_root = emp.line_manager_id is None or not CompanyOrgNode.objects.filter(employee_id=emp.line_manager_id, in_org_chart=True).exists()
+                ji = getattr(emp, 'job_info', None)
+                manager_id = getattr(ji, 'line_manager_id', None)
+                is_root = manager_id is None or not CompanyOrgNode.objects.filter(employee_id=manager_id, in_org_chart=True).exists()
                 image_url = ''
                 if emp.photo:
                     try:
                         image_url = request.build_absolute_uri(emp.photo.url)
                     except Exception:
                         image_url = emp.photo.url
+                dept_name = getattr(getattr(ji, 'department', None), 'name', None) or 'General'
+                role = getattr(ji, 'job_title', None) or 'Employee'
                 node = {
                     'id': str(emp.id),
                     'type': 'orgCard',
                     'data': {
                         'name': f"{emp.first_name} {emp.last_name}",
-                        'role': emp.job_title or 'Employee',
-                        'department': emp.department.name if emp.department else 'General',
+                        'role': role,
+                        'department': dept_name,
                         'image': image_url,
                         'isRoot': is_root
                     },
                     'position': {'x': org.org_x, 'y': org.org_y}
                 }
                 new_nodes.append(node)
-                if emp.line_manager_id and CompanyOrgNode.objects.filter(employee_id=emp.line_manager_id, in_org_chart=True).exists():
+                if manager_id and CompanyOrgNode.objects.filter(employee_id=manager_id, in_org_chart=True).exists():
                     new_edges.append({
-                        'id': f"e{emp.line_manager_id}-{emp.id}",
-                        'source': str(emp.line_manager_id),
+                        'id': f"e{manager_id}-{emp.id}",
+                        'source': str(manager_id),
                         'target': str(emp.id),
                         'type': 'smoothstep'
                     })
