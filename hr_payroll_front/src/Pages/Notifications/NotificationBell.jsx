@@ -56,7 +56,69 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
     }
     path = path.replace(/^\/employee\b/i, '/Employee');
     path = path.replace(/^\/payroll\b/i, '/Payroll');
+    // Map current user role to the base route used in App routes
+    const roleBaseMap = {
+      employee: 'Employee',
+      payroll: 'Payroll',
+      'line manager': 'department_manager',
+      'department manager': 'department_manager',
+      manager: 'hr_dashboard',
+      admin: 'admin_dashboard',
+      hr: 'hr_dashboard',
+    };
+    const getRoleBase = (r) => {
+      if (!r) return 'Employee';
+      const key = Object.keys(roleBaseMap).find(
+        (k) => k === String(r).toLowerCase()
+      );
+      return key ? roleBaseMap[key] : 'Employee';
+    };
+
     const cat = (n?.category || n?.notification_type || '').toLowerCase();
+
+    // If backend sent a generic /policies (or the notification category is policy),
+    // route to the appropriate parent HelpCenter policies page using the user's role.
+    if (
+      path.replace(/\/+$/, '').toLowerCase() === '/policies' ||
+      path.toLowerCase() === 'policies' ||
+      cat.includes('policy')
+    ) {
+      const base = getRoleBase(currentRole);
+      return `/${base}/HelpCenter/policies`;
+    }
+    // Handle payroll approval/rollback notifications: always go to Payroll generate page
+    const text = (
+      (n?.title || '') +
+      ' ' +
+      (n?.message || '') +
+      ' ' +
+      cat +
+      ' ' +
+      path
+    ).toLowerCase();
+    if (
+      text.includes('payroll') &&
+      (text.includes('approved') ||
+        text.includes('approval') ||
+        text.includes('rolled back') ||
+        text.includes('rollback') ||
+        text.includes('reverted'))
+    ) {
+      return '/Payroll/generate_payroll';
+    }
+    // Map generic my-payslips or payslip-related notifications to the appropriate
+    // role-specific my-payslips route (e.g. /Payroll/my-payslips)
+    if (
+      path.replace(/\/+$/, '').toLowerCase() === '/my-payslips' ||
+      path.toLowerCase() === 'my-payslips' ||
+      cat.includes('payslip') ||
+      cat.includes('payslips') ||
+      (cat.includes('payroll') &&
+        path.replace(/\/+$/, '').toLowerCase().endsWith('payslips'))
+    ) {
+      const base = getRoleBase(currentRole);
+      return `/${base}/my-payslips`;
+    }
     if (cat.includes('tax')) return null; // stay in detail for tax code notifications
     if (/^\/leaves(\/|$)/i.test(path)) {
       const roleNorm = (currentRole || '').toLowerCase();
@@ -132,6 +194,20 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
                 <div
                   key={n.id}
                   onClick={() => {
+                    // Log the full notification object and its type for debugging
+                    try {
+                      console.log('notification clicked:', n);
+                      console.log(
+                        'notification type:',
+                        n.category ||
+                          n.notification_type ||
+                          n.type ||
+                          '(unknown)'
+                      );
+                    } catch (err) {
+                      console.log('error logging notification', err);
+                    }
+
                     markRead(n.id);
                     const rawLink = n.related_link || n.link;
                     const target = normalizeLink(rawLink, n);

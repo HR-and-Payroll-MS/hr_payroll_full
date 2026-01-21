@@ -3,7 +3,7 @@ import useAuth from '../../../Context/AuthContext';
 import Table from '../../../Components/Table';
 import EmployeePayslipTemplate from '../../../Components/EmployeePayslipTemplate';
 
-function MyPayrollPage({ background, headerfont = 'text-2xl' }) {
+function MyPayrollPage({titlez=false,pages=4, background, headerfont = 'text-2xl' }) {
   const { axiosPrivate } = useAuth();
   const [payslips, setPayslips] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +47,7 @@ function MyPayrollPage({ background, headerfont = 'text-2xl' }) {
 
   return (
     <div className={`p-5 ${background}`}>
-      <h1 className={` font-semibold mb-4 ${headerfont}`}>Payslips</h1>
+      {!titlez && (<h1 className={` font-semibold mb-4 ${headerfont}`}>Payslips</h1>)}
 
       {loading ? (
         <div>Loading payslips…</div>
@@ -55,6 +55,7 @@ function MyPayrollPage({ background, headerfont = 'text-2xl' }) {
         <div className="text-red-600">{error}</div>
       ) : (
         <Table
+          pages={pages}
           D1="generate"
           Data={payslips}
           Structure={structure}
