@@ -9,8 +9,6 @@ export const TableProvider = ({ children }) => {
   const [tableCache, setTableCache] = useState({});
   const [loadingStates, setLoadingStates] = useState({});
   const { axiosPrivate } = useAuth();
-
-  // Core fetcher
   const getTableData = useCallback(async (tableName, url, forceRefresh = false) => {
     const now = Date.now();
     const cachedEntry = tableCache[tableName];
@@ -29,11 +27,7 @@ export const TableProvider = ({ children }) => {
         const response = await axiosPrivate.get(currentUrl);
         const data = response.data.results || response.data;
         allResults = [...allResults, ...(Array.isArray(data) ? data : [])];
-        
-        // Handle pagination
         if (response.data.next) {
-          // Extract the path from the absolute URL returned by DRF
-          // e.g. "http://localhost:8001/api/v1/employees/?page=2" -> "/employees/?page=2"
           currentUrl = response.data.next.split('/v1')[1];
         } else {
           currentUrl = null;
@@ -51,9 +45,7 @@ export const TableProvider = ({ children }) => {
     }
   }, [axiosPrivate, tableCache]);
 
-  // SILENT REFRESH: Updates cache without global loading triggers
   const refreshTableSilently = useCallback(async (tableName, initialUrl) => {
-    // Note: if initialUrl is not provided, we fall back to TABLE_ENDPOINTS
     const baseUrl = initialUrl || TABLE_ENDPOINTS[tableName];
     if (!baseUrl) return;
     

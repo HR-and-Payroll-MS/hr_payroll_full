@@ -58,14 +58,6 @@ export const Pagination=({ page, totalPages=1, onPageChange})=> {
                     <button onClick={()=>onPageChange(page - 1)} disabled={page === 1} className={` dark:border-slate-700 py-1.5 dark:hover:bg-slate-600 hover:bg-slate-200 px-1 border-gray-100 shadow-2xl border h-full`}>
                         <Icon name={"ChevronLeft"} className="w-4 h-4 text-slate-700 dark:text-slate-300"/>
                     </button>
-
-
-
-
-
-
-
-
                     {
                         [...Array(totalPages)].map((_, i)=>(
 
@@ -79,23 +71,10 @@ export const Pagination=({ page, totalPages=1, onPageChange})=> {
 
                         ))
                     }
-
-                    
-
-
-
-
-
                     <button onClick={()=>onPageChange(page + 1)} disabled={page === totalPages}  className={` dark:hover:bg-slate-600  hover:bg-slate-200 dark:border-slate-700 dark:text-slate-300 py-1.5 px-1 border-gray-100 shadow hover:inset-shadow-xs shadow-slate-200 border h-full`}> 
                         <Icon name={"ChevronRight"} className="w-4 h-4 text-slate-700 dark:text-slate-300"/>
                     </button>
                 </div>
-
-
-
-
-
-
 
                 <div className="flex items-center gap-1.5">
                     <p className={` dark:text-slate-300 font-semibold text-gray-500  text-xs`}>Total Page entries {totalPages}</p>

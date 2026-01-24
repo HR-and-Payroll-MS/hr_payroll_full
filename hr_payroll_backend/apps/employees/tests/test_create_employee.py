@@ -1,6 +1,9 @@
 from django.test import TestCase
 from rest_framework.test import APITestCase, APIClient
-from django.contrib.auth.models import User, Group
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+
+User = get_user_model()
 from apps.employees.models import Employee
 
 

@@ -4,24 +4,19 @@ import { getLocalData, setLocalData } from "./useLocalStorage";
 
 export default function useRefreshToken(){
   const refresh = useCallback(async () => {
-    // Helper to safely run logic (locking if supported)
     const runRefreshLogic = async () => {
       try {
         const refreshToken = getLocalData('refresh');
         if (!refreshToken) return null;
-
-        // 1. Check if another tab just refreshed it
         const lastRefreshStr = getLocalData('last_refresh_time');
         if (lastRefreshStr) {
           const lastRefresh = parseInt(lastRefreshStr, 10);
-          // If refreshed within the last 5 seconds, use the existing token
           if (Date.now() - lastRefresh < 5000) {
             console.log("Token refreshed recently by another tab. Reusing.");
             const storedAccess = getLocalData('access');
             if (storedAccess) return storedAccess;
           }
         }
-
         console.log("Refreshing token...");
         const res = await axiosPublic.post('/auth/djoser/jwt/refresh/', { refresh: refreshToken });
         
@@ -38,18 +33,15 @@ export default function useRefreshToken(){
           }
           return newAccess;
         }
-        return null; // Should not happen if api succeeds
+        return null; 
       } catch (error) {
         console.error('useRefreshToken: refresh failed', error);
-        throw error; // Let axios interceptor handle the logout if needed
+        throw error;
       }
     };
-
     if (navigator.locks) {
-      // Use Web Locks API to prevent race conditions across tabs
       return navigator.locks.request('auth_refresh_mutex', runRefreshLogic);
     } else {
-      // Fallback for older browsers
       return runRefreshLogic();
     }
   }, []);
