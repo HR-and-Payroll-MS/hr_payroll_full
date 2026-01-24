@@ -1,0 +1,99 @@
+{% extends "admin/base.html" %} {% load static %} {% block title %}HR & Payroll
+Admin{% endblock %} {% block extrastyle %} {{ block.super }}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+  rel="stylesheet"
+/>
+<link rel="stylesheet" href="{% static 'admin/custom.css' %}" />
+{% endblock %} {% block branding %}
+<h1 id="site-name" class="admin-brand">
+  <img
+    src="{% static 'pic/Robot Thumb Up with Artificial Intelligence.png' %}"
+    alt="Logo"
+    class="brand-logo"
+  />
+  <span>HR &amp; Payroll Admin</span>
+  <button id="sidebar-toggle" class="sidebar-toggle" title="Toggle sidebar">
+    ☰
+  </button>
+  <button id="theme-toggle" class="sidebar-toggle" title="Toggle theme">
+    🌗
+  </button>
+</h1>
+{% endblock %} {% block nav-global %}{% endblock %} {% block extrahead %} {{
+block.super }}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const selector = '#sidebar .app-list li a, #sidebar .app-listing li a';
+    function prepareLabels() {
+      document.querySelectorAll(selector).forEach((a) => {
+        // don't double-wrap
+        if (a.querySelector('.label')) return;
+        // extract text nodes and wrap them
+        const text = Array.from(a.childNodes)
+          .filter((n) => n.nodeType === 3)
+          .map((n) => n.textContent.trim())
+          .join(' ');
+        if (text) {
+          // remove raw text nodes
+          Array.from(a.childNodes)
+            .filter((n) => n.nodeType === 3)
+            .forEach((n) => n.remove());
+          const span = document.createElement('span');
+          span.className = 'label';
+          span.textContent = text;
+          a.insertBefore(span, a.firstChild);
+          a.setAttribute('title', text);
+        }
+      });
+    }
+
+    prepareLabels();
+
+    const toggle = document.getElementById('sidebar-toggle');
+    function setCollapsed(collapsed) {
+      document.body.classList.toggle('sidebar-collapsed', !!collapsed);
+      localStorage.setItem('adminSidebarCollapsed', collapsed ? '1' : '0');
+    }
+
+    // restore
+    const stored = localStorage.getItem('adminSidebarCollapsed');
+    if (stored === '1') setCollapsed(true);
+
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
+        localStorage.setItem('adminSidebarCollapsed', isCollapsed ? '1' : '0');
+      });
+    }
+
+    // Theme toggle: default to light mode unless user prefers dark or has saved pref
+    const themeToggle = document.getElementById('theme-toggle');
+    function applyTheme(mode) {
+      document.body.classList.remove('light-mode', 'dark-mode');
+      document.body.classList.add(mode + '-mode');
+      localStorage.setItem('adminTheme', mode);
+    }
+
+    const saved = localStorage.getItem('adminTheme');
+    if (saved) {
+      applyTheme(saved);
+    } else {
+      // default to light mode
+      applyTheme('light');
+    }
+
+    if (themeToggle) {
+      themeToggle.addEventListener('click', () => {
+        const current = document.body.classList.contains('dark-mode')
+          ? 'dark'
+          : 'light';
+        const next = current === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+      });
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,240 @@
+/* === Admin styles mapped to frontend design tokens === */
+:root {
+  /* Frontend tokens + admin mapping */
+  --brand-primary: #121828; /* tailwind primary */
+  --brand-secondary: #329a75;
+  --brand-green-500: #10b981; /* requested green-500 */
+  --brand-green-600: #059669;
+  --bg-light: #f8fafc; /* slate-50 */
+  --bg-dark: #0f172a; /* slate-900 */
+  --panel-light: #ffffff;
+  --panel-dark: #1f2937; /* slate-800 */
+  --panel-border-light: #e6edf2;
+  --panel-border-dark: #334155;
+  --text-light: #0f172a; /* slate-900 */
+  --text-dark: #e6eef8;
+  --radius-base: 6px;
+  --radius-sm: 4px;
+  --sidebar-width: 240px;
+  --sidebar-collapsed-width: 72px;
+  --header-bg: #334155; /* slate-700 */
+  --sidebar-bg: #1f2937; /* slate-800 */
+  --sidebar-text: #e6eef8;
+  --font-stack: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-bg: var(--bg-dark);
+    --panel: var(--panel-dark);
+    --panel-border: var(--panel-border-dark);
+    --text: var(--text-dark);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --app-bg: var(--bg-light);
+    --panel: var(--panel-light);
+    --panel-border: var(--panel-border-light);
+    --text: var(--text-light);
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+body {
+  background: var(--app-bg);
+  color: var(--text);
+  font-family: var(--font-stack);
+}
+
+/* Class-based theme overrides (explicitly applied by JS). These take precedence over prefers-color-scheme */
+.light-mode,
+body.light-mode {
+  --app-bg: var(--bg-light);
+  --panel: var(--panel-light);
+  --panel-border: var(--panel-border-light);
+  --text: var(--text-light);
+}
+.dark-mode,
+body.dark-mode {
+  --app-bg: var(--bg-dark);
+  --panel: var(--panel-dark);
+  --panel-border: var(--panel-border-dark);
+  --text: var(--text-dark);
+}
+
+/* Header */
+#header {
+  background: var(--brand-primary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+#branding h1,
+#branding h1 a:link,
+#branding h1 a:visited {
+  color: white;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.admin-brand .brand-logo {
+  width: 28px;
+  height: 28px;
+  filter: none;
+}
+
+/* Layout */
+#sidebar {
+  width: var(--sidebar-width);
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
+  padding: 12px;
+}
+#content {
+  margin-left: var(--sidebar-width);
+  padding: 24px;
+}
+body.sidebar-collapsed #sidebar {
+  width: var(--sidebar-collapsed-width);
+}
+body.sidebar-collapsed #content {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+/* Panels / cards */
+.module,
+.app-listing,
+.dashboard-module {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-base);
+}
+.module h2,
+.module caption,
+.dashboard-module h2 {
+  background: var(--header-bg);
+  color: #fff;
+  padding: 12px 14px;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-top-left-radius: var(--radius-base);
+  border-top-right-radius: var(--radius-base);
+}
+
+/* Sidebar lists */
+.app-list,
+.app-listing {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+}
+.app-list li,
+.app-listing li {
+  list-style: none;
+}
+.app-list li a,
+.app-listing li a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  color: var(--sidebar-text);
+  text-decoration: none;
+}
+.app-list li a .label {
+  font-weight: 600;
+}
+.app-list li a .model-count {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--sidebar-text);
+}
+.app-list li a:hover,
+.app-listing li a:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Collapse behavior */
+body.sidebar-collapsed .app-list li a,
+body.sidebar-collapsed .app-listing li a {
+  justify-content: center;
+  padding: 10px;
+}
+body.sidebar-collapsed .app-list li a .label,
+body.sidebar-collapsed .app-listing li a .label,
+body.sidebar-collapsed .app-list li a .model-count,
+body.sidebar-collapsed .app-listing li a .model-count {
+  display: none;
+}
+
+/* Buttons and links */
+a:link,
+a:visited {
+  color: var(--brand-green-600);
+}
+a:hover {
+  color: var(--brand-green-500);
+}
+.button,
+input[type='submit'],
+input[type='button'],
+.submit-row input,
+.selector-chosen .selector-chooseall,
+.deletelink {
+  background: var(--brand-green-500);
+  color: white;
+  border-radius: 6px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  font-weight: 600;
+}
+.deletelink {
+  background: #ef4444;
+}
+
+/* Forms */
+input,
+select,
+textarea {
+  border-radius: 4px;
+  border: 1px solid var(--panel-border);
+  padding: 8px 10px;
+}
+
+/* Make admin lists, tables visually match frontend spacing */
+.module table thead th {
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Login */
+.login #container {
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+}
+.login .submit-row input {
+  border-radius: 6px;
+}
+
+/* Utilities */
+.sidebar-toggle {
+  background: transparent;
+  border: none;
+  color: var(--sidebar-text);
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+/* Keep functionality intact — only visual overrides */
