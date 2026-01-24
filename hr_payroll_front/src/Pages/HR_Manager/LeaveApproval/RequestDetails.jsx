@@ -18,15 +18,29 @@ import DocumentList from '../../../Components/DocumentList';
 
 export default function RequestDetails({ req, employees }) {
   // Fallback if employee list isn't fully loaded or req doesn't have an ID
-  const emp = employees.find(
-    (e) => e.id === (req.employee || req.employeeId)
-  ) || {
-    name: 'Unknown Employee',
-    avatarColor: 'bg-gray-400',
-    dept: 'N/A',
-    role: 'N/A',
-    photo: null,
-  };
+  // Prefer the global employees list; fall back to per-request employee_info
+  const empFromList = employees.find(
+    (e) => e.id === (req.employee || req.employeeId),
+  );
+  const empFromReq = req.employee_info
+    ? {
+        id: req.employee_info.id,
+        name: req.employee_info.fullname || 'Unknown Employee',
+        avatarColor: 'bg-gray-400',
+        dept: req.employee_info.department || 'N/A',
+        role: req.employee_info.position || 'N/A',
+        photo: req.employee_info.photo || null,
+      }
+    : null;
+
+  const emp = empFromList ||
+    empFromReq || {
+      name: 'Unknown Employee',
+      avatarColor: 'bg-gray-400',
+      dept: 'N/A',
+      role: 'N/A',
+      photo: null,
+    };
 
   // Build photo URL
   const photoUrl = emp.photo
@@ -105,8 +119,8 @@ export default function RequestDetails({ req, employees }) {
           <div className="flex items-center gap-2 font-bold text-xs uppercase text-slate-400 dark:text-slate-500 border-b dark:border-slate-600 pb-2 mb-2">
             <FileText size={14} /> Reason
           </div>
-          <p className="text-sm italic text-slate-600 dark:text-slate-300 leading-relaxed">
-            "{req.reason}"
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            {req.reason}
           </p>
         </div>
       </div>
@@ -145,8 +159,8 @@ export default function RequestDetails({ req, employees }) {
                   step.status === 'approved'
                     ? 'bg-green-500'
                     : step.status === 'denied'
-                    ? 'bg-red-500'
-                    : 'bg-slate-500'
+                      ? 'bg-red-500'
+                      : 'bg-slate-500'
                 }`}
               />
               <div className="flex justify-between items-start">
@@ -161,8 +175,8 @@ export default function RequestDetails({ req, employees }) {
                     step.status === 'approved'
                       ? 'bg-green-100 text-green-700 dark:bg-green-900/20'
                       : step.status === 'denied'
-                      ? 'bg-red-100 text-red-700 dark:bg-red-900/20'
-                      : 'bg-slate-100 text-slate-700 dark:bg-slate-900/20'
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/20'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-900/20'
                   }`}
                 >
                   {step.status}

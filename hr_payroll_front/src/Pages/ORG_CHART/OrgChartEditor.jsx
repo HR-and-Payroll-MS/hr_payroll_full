@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import ReactFlow, { 
   useNodesState, 
   useEdgesState, 
@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import CustomNodeCard from './CustomNodeCard';
 import NodeModal from './NewModal';
 import { getLayoutedElements } from './chartUtils';
-import { Maximize, Lock, Unlock, Zap, Save, Plus, Minus } from 'lucide-react';
+import { Maximize, Minimize2, Lock, Unlock, Zap, Save, Plus, Minus } from 'lucide-react';
 
 const nodeTypes = { orgCard: CustomNodeCard };
 
@@ -22,6 +22,8 @@ const OrgChartEditor = ({ initialData, userRole, onSave }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [isLocked, setIsLocked] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const containerRef = useRef(null);
   
   // This hook now works because of the Provider in OrgChartPage
   const { zoomIn, zoomOut, fitView } = useReactFlow();
@@ -121,8 +123,27 @@ const OrgChartEditor = ({ initialData, userRole, onSave }) => {
     setModalState(prev => ({ ...prev, isOpen: false }));
   };
 
+  // Fullscreen handlers
+  useEffect(() => {
+    const onFullChange = () => {
+      setIsFullScreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', onFullChange);
+    return () => document.removeEventListener('fullscreenchange', onFullChange);
+  }, []);
+
+  const toggleFullScreen = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
   return (
-    <div className="h-full w-full bg-slate-50 rounded-2xl relative shadow-inner overflow-hidden border border-slate-200">
+    <div ref={containerRef} className="h-full w-full bg-slate-50 rounded-2xl relative shadow-inner overflow-hidden border border-slate-200">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -147,6 +168,18 @@ const OrgChartEditor = ({ initialData, userRole, onSave }) => {
             </button>
           </Panel>
         )}
+
+        {/* TOP LEFT PANEL: FULLSCREEN TOGGLE */}
+        <Panel position="top-left">
+          <button
+            onClick={toggleFullScreen}
+            className="flex items-center gap-2 bg-white/90 text-slate-700 px-3 py-2 rounded-xl shadow hover:bg-slate-100 transition-all"
+            title={isFullScreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+          >
+            {isFullScreen ? <Minimize2 size={16} /> : <Maximize size={16} />}
+            <span className="text-xs font-semibold">{isFullScreen ? 'Exit Full' : 'Full Screen'}</span>
+          </button>
+        </Panel>
 
         {/* BOTTOM LEFT PANEL: CONTROLS */}
         <Panel position="bottom-left" className="bg-white/80 backdrop-blur-md p-2 rounded-2xl shadow-xl border border-white flex flex-col gap-1 mb-4 ml-4">
