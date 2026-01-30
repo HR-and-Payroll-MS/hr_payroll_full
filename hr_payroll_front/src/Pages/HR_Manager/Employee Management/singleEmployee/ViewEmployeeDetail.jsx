@@ -18,32 +18,32 @@ const editableByHR = {
   documents: true,
 };
 
+// Payroll officers should only be able to edit the payroll section
 const editableByPayroll = {
   general: false,
-  job: true,
+  job: false,
   payroll: true,
   documents: false,
 };
+
 const stepIndexMapByRole = {
-  Manager: [0, 1, 2, 3], // General, Job, Payroll, Documents
+  manager: [0, 1, 2, 3], // General, Job, Payroll, Documents
   payroll: [1, 2], // Job, Payroll
 };
 
 const defaultSteps = ['General', 'Job', 'Payroll', 'Documents'];
 function ViewEmployeeDetail() {
-  const role = getLocalData('role');
-  const activeStep = role || 'Employee';
+  const role = getLocalData('role') || '';
+  const roleKey = (role || '').toString().toLowerCase();
+  const isPayroll = roleKey.includes('payroll');
+  const isManager = roleKey.includes('manager');
+
   useEffect(() => {
-    const stepMap =
-      activeStep === 'Manager'
-        ? stepIndexMapByRole.Manager
-        : stepIndexMapByRole.payroll;
-
+    const stepMap = isManager ? stepIndexMapByRole.manager : stepIndexMapByRole.payroll;
     setSteps(stepMap?.map((i) => defaultSteps[i]));
-
     setUiStep(0);
     setCurrentStep(stepMap[0]);
-  }, [activeStep]);
+  }, [isManager, isPayroll]);
 
   const { axiosPrivate } = useAuth();
   const { departments, employees } = useData(); // Get shared data
@@ -131,6 +131,8 @@ function ViewEmployeeDetail() {
   };
 
   const handleEditToggle = (section) => {
+    const allowed = isPayroll ? editableByPayroll[section] : editableByHR[section];
+    if (!allowed) return; // disallow toggling edit for sections user can't edit
     setEditMode((prev) => ({ ...prev, [section]: !prev[section] }));
   };
 
@@ -263,15 +265,11 @@ function ViewEmployeeDetail() {
         </div>
         <div className="flex flex-col flex-1 gap-4 h-full overflow-hidden">
           <div className="bg-gray-50 dark:bg-slate-700 shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 rounded p-1">
-            <StepHeader
+              <StepHeader
               steps={steps}
               currentStep={uiStep}
               onStepClick={(index) => {
-                const stepMap =
-                  role === 'payroll'
-                    ? stepIndexMapByRole.payroll
-                    : stepIndexMapByRole.Manager;
-
+                const stepMap = isPayroll ? stepIndexMapByRole.payroll : stepIndexMapByRole.manager;
                 setUiStep(index);
                 setCurrentStep(stepMap[index]);
               }}
@@ -281,7 +279,7 @@ function ViewEmployeeDetail() {
             <div className="max-w-5xl mx-auto">
               <RenderStepContent
                 currentStep={currentStep}
-                editable={role === 'payroll' ? editableByPayroll : editableByHR}
+                editable={isPayroll ? editableByPayroll : editableByHR}
                 editMode={editMode}
                 employeeData={employeeData}
                 handleInputChange={handleInputChange}
