@@ -165,7 +165,9 @@ function ViewEmployeeSalaryInfo({ employeeData }) {
                 d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
               ></path>
             </svg>
-            <div className="mt-3 text-sm text-gray-600">Loading employees...</div>
+            <div className="mt-3 text-sm text-gray-600">
+              Loading employees...
+            </div>
           </div>
         </div>
       ) : (
@@ -185,14 +187,12 @@ function ViewEmployeeSalaryInfo({ employeeData }) {
 
 export default ViewEmployeeSalaryInfo;
 
-
-
 // import React, { useState } from 'react'
 // import Header from '../../../Components/Header';
 // import { SearchStatus } from '../../../Components/Level2Hearder';
 // import Table from '../../../Components/Table';
 // import { useNavigate } from 'react-router-dom';
-// const employeeAttendanceMock = 
+// const employeeAttendanceMock =
 //    [
 //   {
 //     id:1,
@@ -218,7 +218,7 @@ export default ViewEmployeeSalaryInfo;
 //       email: "sarah.johnson@example.com",
 //       pic: ""
 //     },
-    
+
 //     attendance:{date: "2025-11-23",
 //     clockIn: "09:17 AM",
 //     clockInLocation: "Remote - Addis Ababa",
@@ -253,7 +253,7 @@ export default ViewEmployeeSalaryInfo;
 //   };
 
 // const [filters, setFilters] = useState({});
-    
+
 //     function updateFilter(obj){
 //         const key = Object.keys(obj)[0];
 //         const value = obj[key]
@@ -265,12 +265,11 @@ export default ViewEmployeeSalaryInfo;
 //             return {...prev,[key]:value};
 //         });
 //     }
-    
-    
+
 //       const queryString = new URLSearchParams(
 //         Object.entries(filters).filter(([k,v]) => v && v !== "")
 //       ).toString();
-    
+
 //       const dynamicURL = queryString ? `/employees/?${queryString}` : "/employees/";
 //       console.log("Dynamic URL:", dynamicURL);
 

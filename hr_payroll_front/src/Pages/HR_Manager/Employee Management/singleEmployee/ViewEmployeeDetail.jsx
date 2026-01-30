@@ -39,7 +39,9 @@ function ViewEmployeeDetail() {
   const isManager = roleKey.includes('manager');
 
   useEffect(() => {
-    const stepMap = isManager ? stepIndexMapByRole.manager : stepIndexMapByRole.payroll;
+    const stepMap = isManager
+      ? stepIndexMapByRole.manager
+      : stepIndexMapByRole.payroll;
     setSteps(stepMap?.map((i) => defaultSteps[i]));
     setUiStep(0);
     setCurrentStep(stepMap[0]);
@@ -131,7 +133,9 @@ function ViewEmployeeDetail() {
   };
 
   const handleEditToggle = (section) => {
-    const allowed = isPayroll ? editableByPayroll[section] : editableByHR[section];
+    const allowed = isPayroll
+      ? editableByPayroll[section]
+      : editableByHR[section];
     if (!allowed) return; // disallow toggling edit for sections user can't edit
     setEditMode((prev) => ({ ...prev, [section]: !prev[section] }));
   };
@@ -265,11 +269,13 @@ function ViewEmployeeDetail() {
         </div>
         <div className="flex flex-col flex-1 gap-4 h-full overflow-hidden">
           <div className="bg-gray-50 dark:bg-slate-700 shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 rounded p-1">
-              <StepHeader
+            <StepHeader
               steps={steps}
               currentStep={uiStep}
               onStepClick={(index) => {
-                const stepMap = isPayroll ? stepIndexMapByRole.payroll : stepIndexMapByRole.manager;
+                const stepMap = isPayroll
+                  ? stepIndexMapByRole.payroll
+                  : stepIndexMapByRole.manager;
                 setUiStep(index);
                 setCurrentStep(stepMap[index]);
               }}
