@@ -83,7 +83,7 @@ export const sidebarList = {
       label: 'Profile',
       Visible: false,
       sub: [
-        { subPath: 'view_profile', label: 'View Profile' },
+        { subPath: 'profile', label: 'View Profile' },
         { subPath: '/logout', label: 'Logout' },
       ],
     },
@@ -269,13 +269,13 @@ export const sidebarList = {
       Visible: false,
       sub: null,
     },
-    {
-      path: 'policies',
-      Icons: 'ShieldAlert',
-      label: 'Company Policies',
-      Visible: false,
-      sub: null,
-    },
+    // {
+    //   path: 'policies',
+    //   Icons: 'ShieldAlert',
+    //   label: 'Company Policies',
+    //   Visible: false,
+    //   sub: null,
+    // },
   ],
 
   'Line Manager': [

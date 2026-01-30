@@ -30,6 +30,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     - DELETE /employees/{id}/ - Delete employee
     """
     queryset = Employee.objects.all()
+    # Disable server-side pagination for this endpoint so callers get the full list
+    pagination_class = None
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
@@ -64,34 +66,50 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         try:
             queryset = Employee.objects.select_related('department', 'line_manager').all()
             user = self.request.user
-            
-            if not user.is_authenticated:
+
+            # Quick guard: unauthenticated → none
+            if not user or not user.is_authenticated:
                 return Employee.objects.none()
-                
-            if IsHRManager().has_permission(self.request, self):
+
+            # Log who is requesting for debugging
+            try:
+                user_groups = [g.name.upper() for g in user.groups.all()]
+            except Exception:
+                user_groups = []
+
+            # Define HR-like groups (same as permissions)
+            hr_role_groups = {'HR', 'HR MANAGER', 'ADMIN', 'HR-MANAGER', 'PAYROLL', 'MANAGER', 'HUMAN RESOURCES'}
+
+            # If superuser or in HR-like groups → full queryset
+            if getattr(user, 'is_superuser', False) or any(role in user_groups for role in hr_role_groups):
                 return queryset
 
-            # Line Manager Scoping
-            user_groups = [g.name.upper() for g in user.groups.all()]
+            # Line Manager Scoping (non-HR managers who manage a dept)
             is_line_manager = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
             if is_line_manager:
                 from apps.departments.models import Department
-                # Use getattr to be safe if employee is missing
-                employee = getattr(user, 'employee', None)
+                try:
+                    employee = getattr(user, 'employee', None)
+                except Exception:
+                    # If reverse relation access triggers DB errors, return none
+                    return Employee.objects.none()
+
                 if employee:
                     managed_dept_ids = list(Department.objects.filter(manager=employee).values_list('id', flat=True))
-                    
-                    if not managed_dept_ids and employee.department_id:
+                    if not managed_dept_ids and getattr(employee, 'department_id', None):
                         managed_dept_ids = [employee.department_id]
-                    
                     if managed_dept_ids:
                         return queryset.filter(department_id__in=managed_dept_ids)
                 return queryset.none()
 
-            # Regular Employee
-            if hasattr(user, 'employee') and user.employee:
-                return queryset.filter(id=user.employee.id)
-            return queryset.none()
+            # Regular Employee: only their own record
+            try:
+                emp = getattr(user, 'employee', None)
+            except Exception:
+                emp = None
+            if emp:
+                return queryset.filter(id=emp.id)
+            return Employee.objects.none()
             # --- Standard Filters ---
             # Filter by department
             department = self.request.query_params.get('department')

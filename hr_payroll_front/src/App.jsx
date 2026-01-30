@@ -216,6 +216,7 @@ function App() {
             <Route path="View_Employee" element={<ViewEmployee />} />
             <Route path="message" element={<ChatIndex />} />
             <Route path="tax_code" element={<TaxCode />} />
+            <Route path="policies" element={<Policy />} />
             <Route path="efficiency_report" element={<EfficiencyReport />} />
 
             <Route path="Addemployee" element={<AddEmployee />} />
