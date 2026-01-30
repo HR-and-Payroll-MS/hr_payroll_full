@@ -154,6 +154,7 @@ function App() {
           <Route path="Payroll" element={<MainLayout />}>
             {sharedSettingsRoutes}
             {sharedHelpRoutes}
+            <Route path="policies" element={<Policy />} />
             {sharedNotificationRoutes}
             {sharedGlobalRoutes}
             <Route path="U" element={<NewsFeedPage />} />
@@ -201,7 +202,7 @@ function App() {
           </Route>
         </Route>
         {/* ------------------------- Manager ---------------------- */}
-        <Route element={<Routes allowedRoles={['Manager']} />}>
+        <Route element={<Routes allowedRoles={['Manager', 'HR Manager']} />}>
           <Route path="hr_dashboard" element={<MainLayout />}>
             <Route path="clock_in" element={<ClockIn />} />
             <Route index element={<DashboardLayout />} />
@@ -340,6 +341,7 @@ function App() {
             <Route path="clock_in" element={<ClockIn />} />
             <Route index element={<DashboardLayout />} />
             {sharedHelpRoutes}
+            <Route path="policies" element={<Policy />} />
             {sharedSettingsRoutes}
             {sharedNotificationRoutes}
             {sharedGlobalRoutes}
@@ -430,8 +432,8 @@ function App() {
         <Route path="*" element={<NotFound />} />
         {/* <Route path="/" element={<ViewEmployeeDetail/>}/> */}
         {/* <Route path="/" element={<EmployeeDirectory/>}/> */}
-      </>
-    )
+      </>,
+    ),
   );
 
   return (

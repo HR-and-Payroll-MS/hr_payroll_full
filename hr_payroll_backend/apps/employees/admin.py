@@ -13,9 +13,9 @@ class EmployeeDocumentInline(admin.TabularInline):
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ['employee_id', 'fullname', 'email', 'department', 'job_title', 'status']
+    list_display = ['employee_id', 'fullname', 'get_email', 'department', 'job_title', 'status']
     list_filter = ['status', 'department', 'employment_type', 'gender']
-    search_fields = ['first_name', 'last_name', 'email', 'employee_id']
+    search_fields = ['first_name', 'last_name', 'user_account__email', 'employee_id']
     list_select_related = ['department']
     inlines = [EmployeeDocumentInline]
     
@@ -25,7 +25,7 @@ class EmployeeAdmin(admin.ModelAdmin):
                 ('first_name', 'last_name'),
                 ('gender', 'date_of_birth', 'marital_status'),
                 ('nationality', 'personal_tax_id'),
-                ('phone', 'email'),
+                ('phone',),
                 'photo',
             )
         }),
@@ -67,6 +67,13 @@ class EmployeeAdmin(admin.ModelAdmin):
             )
         }),
     )
+
+    def get_email(self, obj):
+        try:
+            return obj.user_account.email if obj.user_account else None
+        except Exception:
+            return None
+    get_email.short_description = 'Email'
 
 
 @admin.register(EmployeeDocument)

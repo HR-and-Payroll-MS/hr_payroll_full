@@ -23,7 +23,8 @@ class Employee(models.Model):
     social_insurance = models.CharField(max_length=50, blank=True, null=True)
     health_care = models.CharField(max_length=100, blank=True, null=True)
     phone = models.CharField(max_length=30, blank=True, null=True)
-    email = models.CharField(max_length=255, blank=True, null=True)
+    # Email is stored on the related User model (single source of truth).
+    # Employee no longer stores `email` directly to avoid duplication.
     photo = models.ImageField(upload_to='employees/photos/', null=True, blank=True)
     
     # Address Information

@@ -375,6 +375,95 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             'removed_from_departments': dept_names
         }, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['post'], url_path='promote-hr')
+    def promote_to_hr(self, request, pk=None):
+        """
+        Promote employee to HR Manager.
+        POST /employees/{id}/promote-hr/
+        """
+        # Only HR Manager / Admin should be able to call this
+        if not request.user.is_staff and not IsHRManager().has_permission(request, self):
+            return Response({'error': 'Only HR can perform this action'}, status=403)
+
+        try:
+            employee = Employee.objects.get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=404)
+
+        employee.job_title = 'HR Manager'
+        employee.save()
+
+        from apps.notifications.models import Notification
+        Notification.objects.create(
+            recipient=employee,
+            sender=request.user.employee if hasattr(request.user, 'employee') else None,
+            title='Promotion: HR Manager',
+            message=f'You have been promoted to HR Manager.',
+            notification_type='promotion',
+            link='/my-profile'
+        )
+
+        return Response({'message': f'Successfully promoted {employee.fullname} to HR Manager'}, status=200)
+
+    @action(detail=True, methods=['post'], url_path='promote-payroll')
+    def promote_to_payroll(self, request, pk=None):
+        """
+        Promote employee to Payroll Officer.
+        POST /employees/{id}/promote-payroll/
+        """
+        # Allow HR managers or users in payroll-related groups
+        if not request.user.is_staff and not (IsHRManager().has_permission(request, self) or request.user.groups.filter(name__icontains='payroll').exists()):
+            return Response({'error': 'Only HR/Payroll admin can perform this action'}, status=403)
+
+        try:
+            employee = Employee.objects.get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=404)
+
+        employee.job_title = 'Payroll Officer'
+        employee.save()
+
+        from apps.notifications.models import Notification
+        Notification.objects.create(
+            recipient=employee,
+            sender=request.user.employee if hasattr(request.user, 'employee') else None,
+            title='Promotion: Payroll Officer',
+            message=f'You have been promoted to Payroll Officer.',
+            notification_type='promotion',
+            link='/my-profile'
+        )
+
+        return Response({'message': f'Successfully promoted {employee.fullname} to Payroll Officer'}, status=200)
+
+    @action(detail=True, methods=['post'], url_path='demote-role')
+    def demote_role(self, request, pk=None):
+        """
+        Generic demote endpoint to remove HR/Payroll roles (set to Employee).
+        POST /employees/{id}/demote-role/
+        """
+        if not request.user.is_staff and not IsHRManager().has_permission(request, self):
+            return Response({'error': 'Only HR can perform this action'}, status=403)
+
+        try:
+            employee = Employee.objects.get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=404)
+
+        employee.job_title = 'Employee'
+        employee.save()
+
+        from apps.notifications.models import Notification
+        Notification.objects.create(
+            recipient=employee,
+            sender=request.user.employee if hasattr(request.user, 'employee') else None,
+            title='Role Update',
+            message=f'Your HR/Payroll privileges have been removed.',
+            notification_type='warning',
+            link='/my-profile'
+        )
+
+        return Response({'message': f'Successfully removed elevated roles from {employee.fullname}'}, status=200)
+
     @action(detail=False, methods=['get', 'put'], url_path='org-chart')
     def org_chart(self, request):
         """

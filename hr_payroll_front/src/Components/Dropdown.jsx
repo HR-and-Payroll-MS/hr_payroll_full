@@ -53,7 +53,7 @@ export default function Dropdown({
       </button>
 
       {isOpen && (
-        <ul className="absolute z-10 text-nowrap mt-2 w-full min-w-fit bg-white dark:bg-slate-700 rounded-sm shadow-lg max-h-56 overflow-y-auto hover-bar">
+        <ul className="absolute z-50 text-nowrap mt-2 w-full min-w-fit bg-white dark:bg-slate-700 rounded-sm shadow-lg max-h-56 overflow-y-auto hover-bar">
           {options && options.length > 0 ? (
             options.map((item, index) => {
               // normalize item: if it's a string, turn it into an object with content

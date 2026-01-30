@@ -41,7 +41,7 @@ const StepJob = ({ data, onChange }) => {
       if (dept.manager) {
         // Find the manager employee details
         const managerEmployee = employees.data?.find(
-          (e) => e.id === dept.manager
+          (e) => e.id === dept.manager,
         );
         if (managerEmployee) {
           managers.push({
@@ -59,7 +59,7 @@ const StepJob = ({ data, onChange }) => {
           (e) =>
             e.department === dept.name &&
             (e.jobtitle === 'Department Manager' ||
-              e.job?.jobtitle === 'Department Manager')
+              e.job?.jobtitle === 'Department Manager'),
         ) || [];
 
       deptEmployees.forEach((emp) => {
@@ -184,6 +184,7 @@ const StepJob = ({ data, onChange }) => {
             type="date"
             value={data.joindate}
             onChange={(e) => onChange({ joindate: e.target.value })}
+            min={new Date().toISOString().slice(0, 10)}
             className="w-full bg-white dark:bg-slate-800 text-sm text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded px-3 py-1.5 outline-none focus:border-green-500 transition-all shadow-sm"
           />
         </div>

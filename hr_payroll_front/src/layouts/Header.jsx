@@ -45,7 +45,7 @@ export default function Header() {
   };
   return (
     <div
-      className={`bg-white flex justify-evenly shadow h-14 gap-3 z-40  dark:bg-slate-800 dark:text-white `}
+      className={`bg-white flex justify-evenly shadow h-14 gap-3 z-30  dark:bg-slate-800 dark:text-white `}
     >
       <div
         id="left"

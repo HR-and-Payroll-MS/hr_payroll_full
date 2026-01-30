@@ -45,9 +45,13 @@ def create_user_for_employee(sender, instance, created, **kwargs):
         # Create User
         # We must set the employee link IMMEDIATELY to prevent the User signal 
         # from trying to create ANOTHER employee (infinite loop prevention)
+        # Determine email: prefer temporary `_user_email` set by the creator,
+        # otherwise fall back to any existing attribute (kept for compatibility),
+        # then finally use a generated local address.
+        provided_email = getattr(instance, '_user_email', None) or getattr(instance, 'email', None)
         user = User(
             username=username,
-            email=instance.email or f"{username}@company.local",
+            email=provided_email or f"{username}@company.local",
             first_name=instance.first_name,
             last_name=instance.last_name,
             employee=instance # Link strictly here
@@ -89,7 +93,6 @@ def create_employee_for_user(sender, instance, created, **kwargs):
         employee = Employee.objects.create(
             first_name=instance.first_name or instance.username,
             last_name=instance.last_name or "User",
-            email=instance.email,
             job_title="New User",
             status="Active"
         )
@@ -254,6 +257,17 @@ def notify_employee_changes(sender, instance, created, **kwargs):
             link=f"/my-profile"
         )
 
+    # Check Job Title Change (log for auditing and debugging)
+    if hasattr(instance, '_old_job_title') and instance._old_job_title != instance.job_title:
+        try:
+            import datetime, traceback
+            entry = f"{datetime.datetime.utcnow().isoformat()} - Employee {getattr(instance,'employee_id', instance.id)} job_title changed from '{instance._old_job_title}' to '{instance.job_title}'\n"
+            entry += ''.join(traceback.format_stack(limit=10))
+            with open('job_title_changes.log', 'a', encoding='utf-8') as fh:
+                fh.write(entry + "\n")
+        except Exception:
+            pass
+
     # Check Line Manager Change
     if hasattr(instance, '_old_line_manager') and instance._old_line_manager != instance.line_manager:
         new_manager = instance.line_manager
@@ -328,3 +342,14 @@ def notify_employee_changes(sender, instance, created, **kwargs):
             # Delete attendance records before the new join date
             print(f"SIGNAL: Purging attendance for {instance.fullname} before {new_date}")
             Attendance.objects.filter(employee=instance, date__lt=new_date).delete()
+
+
+@receiver(post_save, sender=Employee)
+def sync_employee_email_to_user(sender, instance, created, **kwargs):
+    """
+    Ensure the linked User.email matches Employee.email when Employee is saved.
+    This keeps a single authoritative email value across both models.
+    """
+    # Email is now authoritative on the User model. Employee no longer stores
+    # an `email` field, so we intentionally don't sync Employee->User here.
+

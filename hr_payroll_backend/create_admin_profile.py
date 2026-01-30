@@ -41,7 +41,7 @@ def create_admin_employee():
             nationality='System',
             personal_tax_id='000000',
             phone='0000000000',
-            email=user.email,
+            
             
             # Job
             employee_id='ADMIN001',

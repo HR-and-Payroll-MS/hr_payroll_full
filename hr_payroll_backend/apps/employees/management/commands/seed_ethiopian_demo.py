@@ -181,7 +181,6 @@ class Command(BaseCommand):
             social_insurance=f"SI{random.randint(100000, 999999)}",
             health_care="MOH",
             phone=phone,
-            email=email,
             primary_address="Kazanchis, Addis Ababa",
             country="Ethiopia",
             state="Addis Ababa",

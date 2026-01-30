@@ -161,7 +161,7 @@ const AssignToDepartment = () => {
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Selection Panel */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-black/20 p-6 space-y-6 h-fit">
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow dark:shadow-slate-900 dark:shadow-md dark:inset-shadow-xs dark:inset-shadow-slate-600 p-6 space-y-6 h-fit">
                     {/* 1. Select Employee */}
                     <div>
                         <div className="flex items-center gap-2 mb-4">
@@ -233,7 +233,7 @@ const AssignToDepartment = () => {
                 </div>
 
                 {/* Review Panel */}
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg dark:shadow-black/20 p-6 flex flex-col h-full">
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow dark:shadow-slate-900 dark:shadow-md dark:inset-shadow-xs dark:inset-shadow-slate-600 p-6 flex flex-col h-full">
                      <h2 className="font-semibold text-slate-700 dark:text-slate-200 mb-6">Review & Confirm</h2>
                      
                      <div className="flex-1 flex flex-col justify-center items-center text-center space-y-6">

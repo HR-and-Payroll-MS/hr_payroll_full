@@ -5,6 +5,8 @@ import StepHeader from '../../Components/forms/StepHeader';
 import { RenderStepContent } from '../../utils/RenderStepContent';
 import ThreeDots from '../../animations/ThreeDots';
 import ProfileHeader from './ProfileHeader';
+import { useToast } from '../../Components/Toasts/ToastProvider';
+import AlertModal from '../../Components/Modals/AlertModal';
 import MyPayrollPage from '../HR_Manager/payroll_management/MyPayrollPage';
 import { getLocalData } from '../../Hooks/useLocalStorage';
 import { useTableContext } from '../../Context/TableContext';
@@ -14,13 +16,18 @@ import MyProfileSkeleton from '../../animations/Skeleton/MyProfileSkeleton';
 function MyProfile({ currStep = 0 }) {
   const { state } = useLocation();
   const { position } = state || {};
-  
+
   // 1. Get global profile state and actions
-  const { profile, getProfile, refreshProfile, loading: profileLoading } = useProfile();
+  const {
+    profile,
+    getProfile,
+    refreshProfile,
+    loading: profileLoading,
+  } = useProfile();
   const { refreshTableSilently } = useTableContext();
   const { axiosPrivate } = useAuth();
 
-  const employeeId = getLocalData("user_id");
+  const employeeId = getLocalData('user_id');
   const steps = ['General', 'Job', 'Payroll', 'Documents'];
 
   // 2. Local states for editing and form handling
@@ -28,6 +35,12 @@ function MyProfile({ currStep = 0 }) {
   const [employeeData, setEmployeeData] = useState(null);
   const [originalData, setOriginalData] = useState(null);
   const [error, setError] = useState('');
+  const toast = useToast();
+  const [alertConfig, setAlertConfig] = useState({
+    isOpen: false,
+    type: 'info',
+    message: '',
+  });
   const [editMode, setEditMode] = useState({
     general: false,
     job: false,
@@ -82,16 +95,21 @@ function MyProfile({ currStep = 0 }) {
         ...employeeData,
         [section]: employeeData[section],
       };
-      const res = await axiosPrivate.put(`/employees/${employeeId}/`, dataToSave);
+      const res = await axiosPrivate.put(
+        `/employees/${employeeId}/`,
+        dataToSave,
+      );
       setOriginalData(dataToSave);
       setEditMode((prev) => ({ ...prev, [section]: false }));
       refreshTableSilently('users');
       refreshProfile();
-      
+
       console.log('Saved successfully:', res.data);
+      // show toast
+      toast.show({ type: 'success', message: 'Profile updated successfully.' });
     } catch (err) {
       console.error('Save failed:', err);
-      setError('Failed to save. Try again.');
+      toast.show({ type: 'error', message: 'Failed to save. Try again.' });
     }
   };
 
@@ -126,108 +144,68 @@ function MyProfile({ currStep = 0 }) {
   }
 
   return (
-  <div className="h-full bg-slate-50 dark:bg-slate-900 w-full flex flex-col gap-4 scrollbar-hidden overflow-y-auto ">
-    <div className="bg-gray-50 dark:bg-slate-700  rounded shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors">
-      <ProfileHeader 
-        employeeData={employeeData} 
-        setEmployeeData={setEmployeeData} 
-      />
-    </div>
-
-    <div className="flex flex-col flex-1 gap-4">
-      <div className="bg-white dark:bg-slate-700 rounded shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors">
-        <StepHeader
-          classname="flex justify-start items-center px-6 h-14 gap-6 border-b border-gray-200 dark:border-slate-600 bg-transparent text-sm font-medium"
-          notcurrentstyle="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-          steps={steps}
-          currentStep={currentStep}
-          onStepClick={setCurrentStep}
+    <div className="h-full bg-slate-50 dark:bg-slate-900 w-full flex flex-col gap-4 scrollbar-hidden overflow-y-auto ">
+      <div className="bg-gray-50 dark:bg-slate-700  rounded shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors">
+        <ProfileHeader
+          employeeData={employeeData}
+          setEmployeeData={setEmployeeData}
         />
-
-        {/* STEP CONTENT WRAPPER */}
-        <div className="p-6 shadow">
-          <RenderStepContent
-            style=''
-            myDocument={true}
-            currentStep={currentStep}
-            editMode={editMode}
-            employeeData={employeeData}
-            handleInputChange={handleInputChange}
-            handleSave={handleSave}
-            handleCancel={handleCancel}
-            handleEditToggle={handleEditToggle}
-            handleDocumentUpdate={handleDocumentUpdate}
-            editable={{
-              general: true,
-              job: false,
-              payroll: false,
-              documents: true,
-            }}
-          />
-        </div>
       </div>
 
-      {/* PAYROLL SECTION - Conditional Rendering */}
-      {currentStep === 2 && (
-        <div className="bg-white  dark:bg-slate-700 p-6 border-b border-gray-300 shadow-slate-400 rounded shadow-sm dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors">
-          <MyPayrollPage
-            headerfont="text-lg font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight"
-            background={'bg-transparent'}
+      <div className="flex flex-col flex-1 gap-4">
+        <div className="bg-white dark:bg-slate-700 rounded shadow dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors">
+          <StepHeader
+            classname="flex justify-start items-center px-6 h-14 gap-6 border-b border-gray-200 dark:border-slate-600 bg-transparent text-sm font-medium"
+            notcurrentstyle="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            steps={steps}
+            currentStep={currentStep}
+            onStepClick={setCurrentStep}
           />
+
+          {/* STEP CONTENT WRAPPER */}
+          <div className="p-6 shadow">
+            <RenderStepContent
+              style=""
+              myDocument={true}
+              currentStep={currentStep}
+              editMode={editMode}
+              employeeData={employeeData}
+              handleInputChange={handleInputChange}
+              handleSave={handleSave}
+              handleCancel={handleCancel}
+              handleEditToggle={handleEditToggle}
+              handleDocumentUpdate={handleDocumentUpdate}
+              editable={{
+                general: true,
+                job: false,
+                payroll: false,
+                documents: true,
+              }}
+            />
+          </div>
         </div>
-      )}
+
+        {/* PAYROLL SECTION - Conditional Rendering */}
+        {currentStep === 2 && (
+          <div className="bg-white  dark:bg-slate-700 p-6 border-b border-gray-300 shadow-slate-400 rounded shadow-sm dark:shadow-black dark:inset-shadow-xs dark:inset-shadow-slate-600 transition-colors">
+            <MyPayrollPage
+              headerfont="text-lg font-bold text-slate-800 dark:text-slate-100 uppercase tracking-tight"
+              background={'bg-transparent'}
+            />
+          </div>
+        )}
+      </div>
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        close={() => setAlertConfig((p) => ({ ...p, isOpen: false }))}
+        type={alertConfig.type}
+        message={alertConfig.message}
+      />
     </div>
-  </div>
-);
+  );
 }
 
 export default MyProfile;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import React, { useEffect, useState } from 'react';
 // import { useLocation, useParams } from 'react-router-dom';
@@ -246,7 +224,7 @@ export default MyProfile;
 // function MyProfile({ currStep = 0 }) {
 //   const { state } = useLocation();
 //   const { position } = state || {};
-  
+
 // const { profile } = useProfile();
 //   const activeStep = position ?? currStep;
 //   const { refreshTableSilently } = useTableContext();
@@ -335,8 +313,6 @@ export default MyProfile;
 //         res.data
 //       );
 
-
-
 // // const photos = formData.documents?.files;
 // // console.log(photos)
 // // if (photos) {
@@ -345,12 +321,6 @@ export default MyProfile;
 // // uploadData.append("photo", photo);
 // // });
 // // }
-
-
-
-
-
-
 
 //     } catch (err) {
 //       console.error('Save failed:', err);
@@ -395,11 +365,11 @@ export default MyProfile;
 //       <div className="h-fit  rounded-xl">
 //         {/* <EmployeeProfile employeeData={employeeData}/> */}
 //         {/* <ProfileHeader employeeData={employeeData} setEmployeeData={setEmployeeData} /> */}
-      
+
 //  {console.log(employeeData,"employeeData")}
-//   <ProfileHeader 
-//     employeeData={employeeData} 
-//     setEmployeeData={setEmployeeData} 
+//   <ProfileHeader
+//     employeeData={employeeData}
+//     setEmployeeData={setEmployeeData}
 //   />
 //       </div>
 

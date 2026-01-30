@@ -109,7 +109,7 @@ function InputField({
   }, []);
 
   return (
-    <div ref={containerRef} className={`relative flex-1 min-w-3/12 ${maxWidth}`}>
+    <div ref={containerRef} className={`relative z-50 flex-1 min-w-3/12 ${maxWidth}`}>
       <div
         className={`flex items-center px-2.5 py-1.5 rounded
         text-slate-700 dark:text-slate-200
