@@ -7,7 +7,7 @@ export const sidebarList = {
       Visible: false,
       sub: [
         { subPath: 'generate_payroll', label: 'Generate Payroll' },
-        { subPath: 'salary_structure', label: 'Salary Structure' },
+        // { subPath: 'salary_structure', label: 'Salary Structure' },
         // { subPath: 'allowances', label: 'Allowances/Bonuses' },
       ],
     },

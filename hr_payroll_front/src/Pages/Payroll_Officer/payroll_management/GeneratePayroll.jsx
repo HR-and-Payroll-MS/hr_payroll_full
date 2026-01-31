@@ -78,14 +78,19 @@ function GeneratePayroll() {
   const [year, setYear] = useState(currentYear.toString());
 
   // Early generation warning check
+  const isCurrentMonth = useMemo(() => {
+    const today = new Date();
+    return (
+      today.getMonth() === dayjs().month(month).month() &&
+      today.getFullYear() === parseInt(year)
+    );
+  }, [month, year]);
+
   const isEarlyGeneration = useMemo(() => {
     const today = new Date();
-    const isCurrentMonth =
-      today.getMonth() === dayjs().month(month).month() &&
-      today.getFullYear() === parseInt(year);
     // Warning if generating for current month before the 25th
     return isCurrentMonth && today.getDate() < 25;
-  }, [month, year]);
+  }, [isCurrentMonth]);
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState(null);
   const [taxCodes, setTaxCodes] = useState([]);
@@ -689,7 +694,7 @@ function GeneratePayroll() {
           {/* PAYROLL OFFICER BUTTONS */}
           {userRole === 'payroll_officer' && (
             <>
-              {(status === 'draft' ||
+              {isCurrentMonth && (status === 'draft' ||
                 status === 'rolled_back' ||
                 !periodId) && (
                 <button
