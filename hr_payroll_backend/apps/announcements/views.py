@@ -40,7 +40,7 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         return Response({'status': 'view tracked', 'views': announcement.views})
 
     def destroy(self, request, *args, **kwargs):
-        # Only authors or HR managers should be able to delete announcements
+        # Only authors or Managers should be able to delete announcements
         # For simplicity, we'll check if the user has Manager/HR role or is the author
         user = request.user
         instance = self.get_object()

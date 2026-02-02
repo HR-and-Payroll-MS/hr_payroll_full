@@ -78,14 +78,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 user_groups = []
 
             # Define HR-like groups (same as permissions)
-            hr_role_groups = {'HR', 'HR MANAGER', 'ADMIN', 'HR-MANAGER', 'PAYROLL', 'MANAGER', 'HUMAN RESOURCES'}
+            hr_role_groups = {'MANAGER', 'ADMIN', 'PAYROLL', 'HUMAN RESOURCES'}
 
             # If superuser or in HR-like groups → full queryset
             if getattr(user, 'is_superuser', False) or any(role in user_groups for role in hr_role_groups):
                 return queryset
 
-            # Line Manager Scoping (non-HR managers who manage a dept)
-            is_line_manager = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
+            # Line Manager Scoping (non-Manager who manage a dept)
+            is_line_manager = 'LINE MANAGER' in user_groups or 'MANAGER' in user_groups
             if is_line_manager:
                 from apps.departments.models import Department
                 try:
@@ -306,7 +306,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='promote-manager')
     def promote_to_manager(self, request, pk=None):
         """
-        Promote employee to Department Manager.
+        Promote employee to Line Manager.
         POST /employees/{id}/promote-manager/
         Body: { "department_id": <id> }  (Optional, defaults to current department)
         """
@@ -333,8 +333,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             employee.department = target_department
             employee.save()
             
-        # 2. Update Job Title (Signal will handle group changes: Employee -> Manager/Line Manager)
-        employee.job_title = 'Department Manager'
+        # 2. Update Job Title (Signal will handle group changes)
+        employee.job_title = 'Line Manager'
         employee.save()
         
         # 3. Set as Manager of the Department
@@ -346,8 +346,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         Notification.objects.create(
             recipient=employee,
             sender=request.user.employee if hasattr(request.user, 'employee') else None,
-            title="Promotion: Department Manager",
-            message=f"Congratulations! You have been promoted to Manager of the {target_department.name} department.",
+            title="Promotion: Line Manager",
+            message=f"Congratulations! You have been promoted to Line Manager of the {target_department.name} department.",
             notification_type='promotion',
             link="/my-profile"
         )
@@ -360,7 +360,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='demote-manager')
     def demote_from_manager(self, request, pk=None):
         """
-        Demote employee from Department Manager role.
+        Demote employee from Line Manager role.
         POST /employees/{id}/demote-manager/
         """
         from django.contrib.auth.models import Group
@@ -382,8 +382,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         Notification.objects.create(
             recipient=employee,
             sender=request.user.employee if hasattr(request.user, 'employee') else None,
-            title="Position Update: Manager Role Removed",
-            message=f"Your role as Department Manager has been removed.",
+            title="Position Update: Line Manager Role Removed",
+            message=f"Your role as Line Manager has been removed.",
             notification_type='warning',
             link="/my-profile"
         )
@@ -396,10 +396,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='promote-hr')
     def promote_to_hr(self, request, pk=None):
         """
-        Promote employee to HR Manager.
+        Promote employee to Manager.
         POST /employees/{id}/promote-hr/
         """
-        # Only HR Manager / Admin should be able to call this
+        # Only Manager / Admin should be able to call this
         if not request.user.is_staff and not IsHRManager().has_permission(request, self):
             return Response({'error': 'Only HR can perform this action'}, status=403)
 
@@ -408,20 +408,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         except Employee.DoesNotExist:
             return Response({'error': 'Employee not found'}, status=404)
 
-        employee.job_title = 'HR Manager'
+        employee.job_title = 'Manager'
         employee.save()
 
         from apps.notifications.models import Notification
         Notification.objects.create(
             recipient=employee,
             sender=request.user.employee if hasattr(request.user, 'employee') else None,
-            title='Promotion: HR Manager',
-            message=f'You have been promoted to HR Manager.',
+            title='Promotion: Manager',
+            message=f'You have been promoted to Manager.',
             notification_type='promotion',
             link='/my-profile'
         )
 
-        return Response({'message': f'Successfully promoted {employee.fullname} to HR Manager'}, status=200)
+        return Response({'message': f'Successfully promoted {employee.fullname} to Manager'}, status=200)
 
     @action(detail=True, methods=['post'], url_path='promote-payroll')
     def promote_to_payroll(self, request, pk=None):

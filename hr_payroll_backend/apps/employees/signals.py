@@ -117,8 +117,8 @@ def create_employee_for_user(sender, instance, created, **kwargs):
 def sync_user_groups(sender, instance, created, **kwargs):
     """
     Sync Django groups with Employee job_title.
-    - HR Manager -> 'Manager' group
-    - Department Manager -> 'Manager' and 'Line Manager' groups
+    - Manager -> 'Manager' group
+    - Line Manager -> 'Line Manager' group
     - Payroll Officer -> 'Payroll' group
     - Employee (default) -> 'Employee' group
     """
@@ -132,8 +132,8 @@ def sync_user_groups(sender, instance, created, **kwargs):
     group_names = set()
     
     if 'HR MANAGER' in job_title or 'HUMAN RESOURCES MANAGER' in job_title or job_title == 'MANAGER':
-        group_names.add('HR Manager')
-        group_names.add('Manager') # Primary HR group
+        # Canonicalize HR role to 'Manager'
+        group_names.add('Manager')
     elif 'DEPARTMENT MANAGER' in job_title or 'DEPT MANAGER' in job_title or 'LINE MANAGER' in job_title:
         group_names.add('Line Manager')
     elif 'PAYROLL' in job_title:

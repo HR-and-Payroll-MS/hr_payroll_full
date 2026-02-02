@@ -49,11 +49,19 @@ class PayrollCalculationService:
         self.tax_version = self._get_applicable_tax_version()
         self.tax_brackets = self._get_tax_brackets()
         
-        # Load policies - use correct section names matching database
-        self.overtime_policy = self._get_policy('overtimePolicy')
-        self.attendance_policy = self._get_policy('attendancePolicy')
-        self.holiday_policy = self._get_policy('holidayPolicy')
-        self.shift_policy = self._get_policy('shiftPolicy')
+        # Load policies - use centralized helper (single-org default)
+        try:
+            from apps.policies.utils import get_policy
+            self.overtime_policy = get_policy('overtimePolicy')
+            self.attendance_policy = get_policy('attendancePolicy')
+            self.holiday_policy = get_policy('holidayPolicy')
+            self.shift_policy = get_policy('shiftPolicy')
+        except Exception:
+            # Fallback to previous internal lookup
+            self.overtime_policy = self._get_policy('overtimePolicy')
+            self.attendance_policy = self._get_policy('attendancePolicy')
+            self.holiday_policy = self._get_policy('holidayPolicy')
+            self.shift_policy = self._get_policy('shiftPolicy')
         
         # Load company info for payslip details
         self.company_info = self._get_company_info()
@@ -928,7 +936,7 @@ class PayrollCalculationService:
 
 
 def submit_payroll(period: PayrollPeriod, submitted_by: Employee, notes: str = ''):
-    """Submit payroll for HR approval."""
+    """Submit payroll for Manager approval."""
     if period.status not in ['generated', 'rolled_back']:
         raise ValueError(f"Cannot submit payroll in '{period.status}' status")
     
@@ -952,7 +960,7 @@ def submit_payroll(period: PayrollPeriod, submitted_by: Employee, notes: str = '
 
 
 def approve_payroll(period: PayrollPeriod, approved_by: Employee, notes: str = ''):
-    """Approve payroll (HR Manager action)."""
+    """Approve payroll (Manager action)."""
     if period.status != 'pending_approval':
         raise ValueError(f"Cannot approve payroll in '{period.status}' status")
     
@@ -976,7 +984,7 @@ def approve_payroll(period: PayrollPeriod, approved_by: Employee, notes: str = '
 
 
 def rollback_payroll(period: PayrollPeriod, rolled_back_by: Employee, reason: str):
-    """Rollback payroll to draft (HR Manager action)."""
+    """Rollback payroll to draft (Manager action)."""
     if period.status not in ['pending_approval', 'approved']:
         raise ValueError(f"Cannot rollback payroll in '{period.status}' status")
     

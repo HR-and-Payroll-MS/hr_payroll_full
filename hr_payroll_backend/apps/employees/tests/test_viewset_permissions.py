@@ -45,7 +45,7 @@ class EmployeeViewSetPermissionTests(TestCase):
             pass
 
         # Create groups
-        self.hr_group, _ = Group.objects.get_or_create(name='HR MANAGER')
+        self.hr_group, _ = Group.objects.get_or_create(name='Manager')
         self.payroll_group, _ = Group.objects.get_or_create(name='Payroll')
         self.line_group, _ = Group.objects.get_or_create(name='Line Manager')
 

@@ -7,13 +7,11 @@ export const policyFormSchemas = {
       end: { type: "time", label: "End Time" },
     },
     gracePeriod: {
-      minutesAllowed: { type: "number", label: "Minutes Allowed" },
       lateAfter: { type: "number", label: "Late After (min)" },
       penaltyRule: { type: "text", label: "Penalty Rule", placeholder: "e.g. 3 lates = 1 warning" },
     },
     lateEarlyRules: {
       earlyLeaveMinutes: { type: "number", label: "Early Leave Threshold (min)" },
-      acceptableLateMinutes: { type: "number", label: "Acceptable Late Minutes" },
     },
     absentRules: {
       absentAfterMinutes: { type: "number", label: "Absent After (min)" },

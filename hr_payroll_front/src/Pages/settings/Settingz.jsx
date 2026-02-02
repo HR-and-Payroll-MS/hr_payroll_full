@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import useAuth from '../../Context/AuthContext';
 import Header from "../../Components/Header";
 import { 
   Building2, 
@@ -11,13 +12,24 @@ import {
 
 export default function Setting() {
   
+  const { auth } = useAuth();
+
   // Sidebar Navigation logic
-  const navItems = [
+  const navItemsAll = [
     { to: "CompanyInfo", label: "Company Info", icon: <Building2 size={16} /> },
     { to: "WorkSchedule", label: "Work Schedule", icon: <CalendarClock size={16} /> },
+    { to: "PolicyShifts", label: "Policy Shifts", icon: <CalendarClock size={16} /> },
     { to: "FAQ", label: "Permission", icon: <ShieldCheck size={16} /> },
     { to: "ChangePassword", label: "Change Password", icon: <KeyRound size={16} /> },
   ];
+
+  // Only allow Manager group to see PolicyShifts; WorkSchedule remains visible to all
+  const role = auth?.user?.role ? String(auth.user.role).toUpperCase() : null;
+  const canManage = role === 'MANAGER';
+  const navItems = navItemsAll.filter(item => {
+    if (item.to === 'PolicyShifts' && !canManage) return false;
+    return true;
+  });
 
   const middle = (
     <div id="middle" className="flex flex-col h-full w-full bg-white dark:bg-slate-800 p-2 gap-1.5 transition-colors">

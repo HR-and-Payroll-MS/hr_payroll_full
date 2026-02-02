@@ -4,7 +4,10 @@ import { formatTime, notificationIcon } from "./utils";
 export default function NotificationCard({ n, onView, onDelete, onMarkRead }) {
   return (
     <div
-      onClick={onView}
+      onClick={() => {
+        try { console.log('NotificationCard clicked (frontend):', n); } catch (e) {}
+        onView && onView();
+      }}
       className="group relative p-4 bg-white dark:bg-slate-700/50 rounded shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:border-green-400/15 dark:hover:border-green-500/15 hover:shadow-md transition-all active:scale-[0.99] mb-3"
     >
       {/* Status Indicator Bar - Matching the Leave Request style */}
@@ -50,7 +53,8 @@ export default function NotificationCard({ n, onView, onDelete, onMarkRead }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onMarkRead();
+                try { console.log('Notification markRead clicked (frontend):', n); } catch (e) {}
+                onMarkRead && onMarkRead();
               }}
               className="p-1.5 text-green-500 hover:bg-green-50 dark:hover:bg-green-500/10 rounded transition-colors"
               title="Mark as Read"
@@ -61,7 +65,8 @@ export default function NotificationCard({ n, onView, onDelete, onMarkRead }) {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              try { console.log('Notification delete clicked (frontend):', n); } catch (e) {}
+              onDelete && onDelete();
             }}
             className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded transition-colors"
             title="Delete"

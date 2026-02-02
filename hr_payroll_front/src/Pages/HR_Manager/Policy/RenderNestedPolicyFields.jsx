@@ -81,6 +81,22 @@ const RenderNestedPolicyFields = ({
       {entries.map(([key, value]) => {
         const fullPath = path ? `${path}.${key}` : key;
 
+        // helper: derive schema for this fullPath (remove array indices)
+        const getFieldSchema = (fullPath) => {
+          try {
+            const cleaned = fullPath.replace(/\[\d+\]/g, '');
+            const segments = cleaned.split('.');
+            let schema = formSchemas?.[sectionKey];
+            for (let seg of segments) {
+              if (!schema) return null;
+              schema = schema[seg];
+            }
+            return schema || null;
+          } catch (err) {
+            return null;
+          }
+        };
+
         // --- NESTED OBJECT CONTAINER ---
         if (
           value &&
@@ -218,13 +234,41 @@ const RenderNestedPolicyFields = ({
                     }
                   />
                 ) : (
-                  <input
-                    value={value ?? ''}
-                    onChange={(e) =>
-                      handleInputChange(sectionKey, fullPath, e.target.value)
+                  (() => {
+                    const fieldSchema = getFieldSchema(fullPath);
+                    const ftype = fieldSchema?.type || 'text';
+
+                    if (ftype === 'boolean') {
+                      return (
+                        <input
+                          type="checkbox"
+                          checked={!!value}
+                          onChange={(e) =>
+                            handleInputChange(sectionKey, fullPath, e.target.checked)
+                          }
+                        />
+                      );
                     }
-                    className="w-full md:w-2/3 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                  />
+
+                    // Use appropriate input types for time/date/number
+                    const inputType = ftype === 'time' || ftype === 'date' || ftype === 'number' ? ftype : 'text';
+
+                    return (
+                      <input
+                        type={inputType}
+                        value={value ?? ''}
+                        onChange={(e) =>
+                          handleInputChange(
+                            sectionKey,
+                            fullPath,
+                            // keep numbers as-is (string) — backend will validate
+                            inputType === 'number' ? e.target.value : e.target.value,
+                          )
+                        }
+                        className="w-full md:w-2/3 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                      />
+                    );
+                  })()
                 )
               ) : (
                 <div className="text-sm font-bold text-slate-700 dark:text-slate-200">

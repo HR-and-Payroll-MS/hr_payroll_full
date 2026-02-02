@@ -50,8 +50,8 @@ class Command(BaseCommand):
             defaults={
                 'first_name': 'Harriet', 
                 'last_name': 'Resources', 
-                'job_title': 'HR Manager',
-                'position': 'HR Manager'
+                'job_title': 'Manager',
+                'position': 'Manager'
             }
         )
         # Get the user that was auto-created by signal

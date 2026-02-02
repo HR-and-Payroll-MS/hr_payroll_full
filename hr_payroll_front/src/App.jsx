@@ -24,6 +24,7 @@ import Settingz from './Pages/settings/Settingz';
 import CompanyInfo from './Pages/settings/sub/CompanyInfo';
 import ChangePassword from './Pages/settings/sub/ChangePassword';
 import WorkSchedule from './Pages/settings/sub/WorkSchedule';
+import PolicyShifts from './Pages/settings/sub/PolicyShifts';
 import Checklist from './Pages/HR_Manager/Checklist/Checklist';
 import DashboardLayout from './layouts/DashboardLayout';
 import AddEmployee from './Pages/HR_Manager/Employee Management/AddEmployee';
@@ -108,6 +109,7 @@ function App() {
       <Route path="CompanyInfo" element={<CompanyInfo />} />
       <Route path="ChangePassword" element={<ChangePassword />} />
       <Route path="WorkSchedule" element={<WorkSchedule />} />
+      <Route path="PolicyShifts" element={<PolicyShifts />} />
       <Route path="FAQ" element={<FAQPage />} />
     </Route>
   );

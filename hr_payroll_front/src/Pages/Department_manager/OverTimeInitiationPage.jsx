@@ -15,6 +15,8 @@ const OvertimeInitiationPage = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
+  const [rawResponse, setRawResponse] = useState(null);
+  const [showRaw, setShowRaw] = useState(false);
 
   // Show Toast Helper
   const showToast = (message, type = 'success') => {
@@ -27,16 +29,43 @@ const OvertimeInitiationPage = () => {
     const fetchTeam = async () => {
       setLoading(true);
       try {
-        const response = await axiosPrivate.get(
-          `/attendances/manager/department/${date ? `?date=${date}` : ''}`
-        );
-        // Mapping backend response to expected format
-        const team = response.data.map((emp) => ({
-          id: emp.employee_id,
-          name: emp.employee_name,
-          role: emp.job_title || 'Employee', // fallback if job_title not in attendance detail
+        const res = await axiosPrivate.get('/attendances/manager/department/', {
+          params: date ? { date } : {},
+        });
+
+        const payload = res?.data;
+
+        // Backend returns a plain array; be defensive in case of wrapper
+        const list = Array.isArray(payload)
+          ? payload
+          : payload?.results || payload?.data || [];
+
+        // keep raw payload for debug UI
+        setRawResponse(payload);
+
+        // Map to expected frontend shape
+        const team = (list || []).map((emp) => ({
+          // Ensure we use the backend primary key when available (emp.id),
+          // fall back to any employee identifier provided.
+          id: emp.id || emp.employee_id,
+          name:
+            emp.employee_name ||
+            emp.employee_name_display ||
+            emp.employee_name ||
+            emp.employee_id ||
+            emp.id,
+          role: emp.job_title || emp.role || 'Employee',
         }));
+
         setEmployees(team);
+
+        // Helpful hint if manager has no managed departments
+        if (!team.length) {
+          showToast(
+            'No employees returned. Ensure you are assigned as Department Manager or your department has a manager.',
+            'error',
+          );
+        }
       } catch (error) {
         console.error('Error fetching team:', error);
         showToast('Failed to load team members', 'error');
@@ -53,13 +82,13 @@ const OvertimeInitiationPage = () => {
     return employees.filter(
       (emp) =>
         emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        emp.role.toLowerCase().includes(searchTerm.toLowerCase())
+        emp.role.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [searchTerm, employees]);
 
   const toggleEmployee = (id) => {
     setSelectedEmployees((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
 
@@ -192,14 +221,34 @@ const OvertimeInitiationPage = () => {
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
                   Assign To Employees
                 </h2>
-                <input
-                  type="text"
-                  placeholder="Filter by name..."
-                  className="w-full sm:w-64 p-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-sm outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <div className="flex items-center w-full sm:w-auto gap-2">
+                  <input
+                    type="text"
+                    placeholder="Filter by name..."
+                    className="w-full sm:w-64 p-2 bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-600 rounded-lg text-sm outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-slate-400"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRaw((s) => !s)}
+                    className="text-xs px-2 py-1 border rounded bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200"
+                  >
+                    {showRaw ? 'Hide Raw' : 'Show Raw'}
+                  </button>
+                </div>
               </div>
+
+              {showRaw && rawResponse && (
+                <div className="p-4 bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                    Raw API Response
+                  </h3>
+                  <pre className="text-xs whitespace-pre-wrap max-h-48 overflow-auto text-gray-700 dark:text-slate-200">
+                    {JSON.stringify(rawResponse, null, 2)}
+                  </pre>
+                </div>
+              )}
 
               <div className="max-h-96 overflow-y-auto hover-bar scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-slate-600">
                 {loading ? (

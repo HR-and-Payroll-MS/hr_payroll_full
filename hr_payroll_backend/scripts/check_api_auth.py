@@ -22,7 +22,7 @@ if created:
     user.save()
 
 # Ensure group exists and user is in HR group
-group, _ = Group.objects.get_or_create(name='HR MANAGER')
+group, _ = Group.objects.get_or_create(name='Manager')
 user.groups.add(group)
 user.save()
 

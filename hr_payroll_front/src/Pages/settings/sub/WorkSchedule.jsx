@@ -10,6 +10,25 @@ export default function WorkSchedule() {
     const { axiosPrivate, auth } = useAuth();
     const { departments, employees } = useData();
     const userRole = auth?.user?.role || 'Employee'; 
+    // Helper: compute duration between two HH:MM strings and return HH:MM string
+    const computeHoursPerDay = (start, end) => {
+        try {
+            if (!start || !end) return '08:00';
+            const [sh, sm] = start.split(':').map(Number);
+            const [eh, em] = end.split(':').map(Number);
+            let startMin = sh * 60 + sm;
+            let endMin = eh * 60 + em;
+            if (endMin <= startMin) endMin += 24 * 60;
+            const diff = endMin - startMin;
+            const hours = Math.floor(diff / 60);
+            const minutes = diff % 60;
+            const hh = String(hours).padStart(2, '0');
+            const mm = String(minutes).padStart(2, '0');
+            return `${hh}:${mm}`;
+        } catch (e) {
+            return '08:00';
+        }
+    };
     const [schedules, setSchedules] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -42,7 +61,7 @@ export default function WorkSchedule() {
                 id: s.id,
                 name: s.title,
                 isDefault: false, // Backend doesn't have this yet, assume false
-                workingHoursDay: "08:00", // placeholder or derive
+                workingHoursDay: computeHoursPerDay(s.start_time, s.end_time),
                 effectiveFrom: s.created_at.split('T')[0],
                 type: "Fixed Time",
                 totalHoursWeek: "40:00",
@@ -121,18 +140,28 @@ export default function WorkSchedule() {
                 hours_per_week: formData.totalHoursWeek || "40:00"
             };
             
+            let res = null;
             if (String(editingId).includes('new')) {
                 // Create
-                await axiosPrivate.post('/attendances/schedules/', payload);
+                res = await axiosPrivate.post('/attendances/schedules/', payload);
             } else {
                 // Update
-                await axiosPrivate.put(`/attendances/schedules/${editingId}/`, payload);
+                res = await axiosPrivate.put(`/attendances/schedules/${editingId}/`, payload);
             }
-            fetchSchedules();
-            setEditingId(null);
+
+            // If backend returned validation errors, axios would throw and we land in catch.
+            // On success, refresh list and close editor.
+            if (res && (res.status === 200 || res.status === 201)) {
+                fetchSchedules();
+                setEditingId(null);
+                setFormData(null);
+            }
         } catch (err) {
             console.error("Failed to save schedule", err);
-            alert("Failed to save schedule.");
+            // Show server validation errors if available
+            const msg = err?.response?.data ? JSON.stringify(err.response.data) : (err.message || 'Failed to save schedule.');
+            alert(`Save failed: ${msg}`);
+            // Keep editing mode open so user can correct
         }
     };
 
@@ -170,6 +199,8 @@ export default function WorkSchedule() {
                 { day: "Sunday", hours: "Off", enabled: false },
             ]
         };
+        // compute workingHoursDay from times
+        newSchedule.workingHoursDay = computeHoursPerDay(newSchedule.startTime, newSchedule.endTime);
         setSchedules([newSchedule, ...schedules]);
         setExpandedId(newId);
         setEditingId(newId);
@@ -218,12 +249,13 @@ export default function WorkSchedule() {
         s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const isHRManager = ['Manager', 'Admin', 'Payroll', 'HR Manager'].includes(userRole);
+    const roleStr = auth?.user?.role ? String(auth.user.role).toUpperCase() : 'EMPLOYEE';
+    const isHRManager = roleStr === 'MANAGER';
 
     return (
         <div className="flex relative flex-col w-full p-8 bg-white dark:bg-slate-800 dark:text-slate-100 min-h-screen">
             {/* HEADER */}
-            <div className="flex sticky z-30 bg-white dark:bg-slate-800 p-4 top-0 gap-2 border-b border-gray-100 dark:border-slate-700 mb-6">
+            <div className="flex sticky z-20 bg-white dark:bg-slate-800 p-4 top-0 gap-2 border-b border-gray-100 dark:border-slate-700 mb-6">
                 <p className="text-xl flex-1 font-bold">Work Schedule</p>
                 <div className="flex items-center w-1/3 px-1.5 border border-gray-200 dark:border-slate-700 dark:bg-slate-900 rounded-lg">
                     <div className="flex text-xs w-full items-center justify-between px-2.5 py-2.5 h-full">
@@ -356,11 +388,17 @@ export default function WorkSchedule() {
                                                         <div className="flex gap-6 p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                                                             <div className="flex-1">
                                                                 <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Start Time</label>
-                                                                <input type="time" className="text-sm font-bold w-full outline-none bg-transparent dark:text-slate-100 border-b border-slate-200" value={formData.startTime} onChange={(e) => setFormData({...formData, startTime: e.target.value})} />
+                                                                <input type="time" className="text-sm font-bold w-full outline-none bg-transparent dark:text-slate-100 border-b border-slate-200" value={formData.startTime} onChange={(e) => {
+                                                                    const newStart = e.target.value;
+                                                                    setFormData({...formData, startTime: newStart, workingHoursDay: computeHoursPerDay(newStart, formData.endTime)});
+                                                                }} />
                                                             </div>
                                                             <div className="flex-1">
                                                                 <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">End Time</label>
-                                                                <input type="time" className="text-sm font-bold w-full outline-none bg-transparent dark:text-slate-100 border-b border-slate-200" value={formData.endTime} onChange={(e) => setFormData({...formData, endTime: e.target.value})} />
+                                                                <input type="time" className="text-sm font-bold w-full outline-none bg-transparent dark:text-slate-100 border-b border-slate-200" value={formData.endTime} onChange={(e) => {
+                                                                    const newEnd = e.target.value;
+                                                                    setFormData({...formData, endTime: newEnd, workingHoursDay: computeHoursPerDay(formData.startTime, newEnd)});
+                                                                }} />
                                                             </div>
                                                         </div>
                                                         <div className="grid grid-cols-1 gap-2">

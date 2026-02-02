@@ -22,6 +22,7 @@ router.register('employee-deductions', EmployeeDeductionViewSet, basename='emplo
 urlpatterns = [
     path('reports/', PayrollReportsView.as_view(), name='payroll-reports'),
     path('my-payslips/', MyPayslipsView.as_view(), name='my-payslips'),
+    path('payslips/<int:pk>/apply-adjustment/', PayslipViewSet.as_view({'post': 'apply_adjustment'}), name='payslip-apply-adjustment'),
     path('periods/<int:pk>/rollback/', PayrollPeriodViewSet.as_view({'post': 'rollback'}), name='payroll-period-rollback'),
     path('periods/<int:pk>/finalize/', PayrollPeriodViewSet.as_view({'post': 'finalize'}), name='payroll-period-finalize'),
     path('', include(router.urls)),

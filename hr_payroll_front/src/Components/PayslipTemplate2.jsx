@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useAuth from '../Context/AuthContext';
+import { BASE_URL } from '../api/axiosInstance';
 
 /**
  * PayslipTemplate2 - Editable & Policy Integrated Version
@@ -13,6 +14,8 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
   const [original, setOriginal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  const [adjAmount, setAdjAmount] = useState(0);
+  const [adjNote, setAdjNote] = useState('');
 
   // Sync internal state when payroll prop changes
   useEffect(() => {
@@ -42,28 +45,15 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
   const safeDeductions = Array.isArray(source.deductions)
     ? source.deductions
     : [];
+  const adjustmentApplied = Number(source.adjustmentApplied || 0);
+  const activePayslipId = formData?.payslipId || formData?.id;
+  const apiBase = BASE_URL || '';
 
   // Handle live editing of amounts
   const handleUpdateAmount = (type, index, value) => {
-    const updated = { ...formData };
-    const targetSource = updated.details || updated;
-    const numValue = parseFloat(value) || 0;
-
-    if (type === 'earnings') targetSource.earnings[index].amount = numValue;
-    if (type === 'deductions') targetSource.deductions[index].amount = numValue;
-
-    // Recalculate Totals for the UI
-    targetSource.gross = targetSource.earnings.reduce(
-      (acc, curr) => acc + curr.amount,
-      0
-    );
-    targetSource.totalDeductions = targetSource.deductions.reduce(
-      (acc, curr) => acc + curr.amount,
-      0
-    );
-    targetSource.net = targetSource.gross - targetSource.totalDeductions;
-
-    setFormData(updated);
+    // Editing individual earnings/deductions is disabled in the new flow.
+    // Keep function for compatibility but do nothing when editable ADJ flow is used.
+    return;
   };
 
   // Default save handler: compute net delta and apply backend adjustment
@@ -73,6 +63,64 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
         return onSave(formData);
       }
       if (!formData || !original) return;
+      // If editable ADJ flow is active, use the ADJ input instead of computing delta
+      if (editable) {
+        const adj = Number(adjAmount || 0);
+        if (!activePayslipId) {
+          setSaveMsg('Missing payslip ID; cannot apply adjustment.');
+          return;
+        }
+        if (adj === 0) {
+          setSaveMsg('No changes to apply.');
+          return;
+        }
+
+        setSaving(true);
+        setSaveMsg('');
+        const endpoint = `${apiBase}/payroll/payslips/${activePayslipId}/apply-adjustment/`;
+        const payload = {
+          amount: adj,
+          note: adjNote || 'Manual adjustment via ADJ field',
+        };
+        try {
+          let res;
+          if (axiosPrivate) {
+            res = await axiosPrivate.post(endpoint, payload);
+            res = res.data;
+          } else {
+            res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              credentials: 'include',
+            }).then(async (r) => {
+              const data = await r.json().catch(() => ({}));
+              if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+              return { data };
+            });
+            res = res.data;
+          }
+
+          const updated = res?.payslip || res || formData;
+          setOriginal(JSON.parse(JSON.stringify(updated)));
+          setFormData(JSON.parse(JSON.stringify(updated)));
+          setSaveMsg(`Applied adjustment: ${adj > 0 ? '+' : ''}${adj}`);
+          try {
+            const ev = new CustomEvent('payslip-updated', { detail: updated });
+            window.dispatchEvent(ev);
+          } catch (e) {}
+          return;
+        } catch (err) {
+          setSaveMsg(
+            err?.response?.data?.error ||
+              err.message ||
+              'Failed to apply adjustment',
+          );
+          return;
+        } finally {
+          setSaving(false);
+        }
+      }
       const curr = formData.details || formData;
       const prev = original.details || original;
       const currNet = Number(curr.net || 0);
@@ -80,11 +128,67 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
       const delta = +(currNet - prevNet).toFixed(2);
 
       if (delta === 0) {
+        // If net didn't change but other details were edited, persist the details via PATCH
+        const currStr = JSON.stringify(curr || {});
+        const prevStr = JSON.stringify(prev || {});
+        if (currStr !== prevStr) {
+          // Persist edited details
+          try {
+            if (!activePayslipId) {
+              setSaveMsg('Missing payslip ID; cannot save changes.');
+              return;
+            }
+            setSaving(true);
+            const patchPayload = { details: curr };
+            let patchRes;
+            if (axiosPrivate) {
+              patchRes = await axiosPrivate.patch(
+                `${apiBase}/payroll/payslips/${activePayslipId}/`,
+                patchPayload,
+              );
+              patchRes = patchRes.data;
+            } else {
+              patchRes = await fetch(
+                `${apiBase}/payroll/payslips/${activePayslipId}/`,
+                {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(patchPayload),
+                  credentials: 'include',
+                },
+              ).then(async (r) => {
+                const data = await r.json().catch(() => ({}));
+                if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+                return data;
+              });
+            }
+            const updatedPayslip = patchRes?.payslip || patchRes || formData;
+            setOriginal(JSON.parse(JSON.stringify(updatedPayslip)));
+            setFormData(JSON.parse(JSON.stringify(updatedPayslip)));
+            setSaveMsg('Changes saved');
+            try {
+              const ev = new CustomEvent('payslip-updated', {
+                detail: updatedPayslip,
+              });
+              window.dispatchEvent(ev);
+            } catch (e) {}
+            return;
+          } catch (err) {
+            setSaveMsg(
+              err?.response?.data?.error ||
+                err.message ||
+                'Failed to save changes',
+            );
+            return;
+          } finally {
+            setSaving(false);
+          }
+        }
         setSaveMsg('No changes to apply.');
         return;
       }
 
-      if (!formData.id) {
+      if (!activePayslipId) {
         setSaveMsg('Missing payslip ID; cannot apply adjustment.');
         return;
       }
@@ -93,7 +197,7 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
       setSaveMsg('');
 
       // Prefer axiosPrivate if available, else fallback to fetch
-      const endpoint = `/payroll/payslips/${formData.id}/apply-adjustment/`;
+      const endpoint = `${apiBase}/payroll/payslips/${activePayslipId}/apply-adjustment/`;
       const payload = {
         amount: delta,
         note: 'Manual edit via payslip template',
@@ -120,9 +224,17 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
       setOriginal(JSON.parse(JSON.stringify(updated)));
       setFormData(JSON.parse(JSON.stringify(updated)));
       setSaveMsg(`Applied adjustment: ${delta > 0 ? '+' : ''}${delta}`);
+
+      // Notify the app that this payslip was updated so parent views can refresh
+      try {
+        const ev = new CustomEvent('payslip-updated', { detail: updated });
+        window.dispatchEvent(ev);
+      } catch (e) {
+        // ignore dispatch errors
+      }
     } catch (e) {
       setSaveMsg(
-        e?.response?.data?.error || e.message || 'Failed to apply adjustment'
+        e?.response?.data?.error || e.message || 'Failed to apply adjustment',
       );
     } finally {
       setSaving(false);
@@ -393,28 +505,7 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
                 <tr key={idx}>
                   <td style={{ padding: '4px 0' }}>{e.label}</td>
                   <td style={{ textAlign: 'right', fontWeight: 500 }}>
-                    {editable ? (
-                      <input
-                        type="number"
-                        value={e.amount}
-                        onChange={(event) =>
-                          handleUpdateAmount(
-                            'earnings',
-                            idx,
-                            event.target.value
-                          )
-                        }
-                        style={{
-                          width: '80px',
-                          textAlign: 'right',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '4px',
-                          padding: '2px 4px',
-                        }}
-                      />
-                    ) : (
-                      (e.amount || 0).toLocaleString()
-                    )}
+                    {(e.amount || 0).toLocaleString()}
                   </td>
                 </tr>
               ))}
@@ -452,29 +543,7 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
                 <tr key={idx}>
                   <td style={{ padding: '4px 0' }}>{d.label}</td>
                   <td style={{ textAlign: 'right', fontWeight: 500 }}>
-                    {editable ? (
-                      <input
-                        type="number"
-                        value={d.amount}
-                        onChange={(event) =>
-                          handleUpdateAmount(
-                            'deductions',
-                            idx,
-                            event.target.value
-                          )
-                        }
-                        style={{
-                          width: '80px',
-                          textAlign: 'right',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '4px',
-                          padding: '2px 4px',
-                          color: '#ef4444',
-                        }}
-                      />
-                    ) : (
-                      (d.amount || 0).toLocaleString()
-                    )}
+                    {(d.amount || 0).toLocaleString()}
                   </td>
                 </tr>
               ))}
@@ -552,6 +621,29 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
             </div>
           </div>
         </div>
+        {adjustmentApplied !== 0 && (
+          <div
+            style={{
+              marginTop: '0.75rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '0.75rem',
+              color: '#cbd5e1',
+            }}
+          >
+            <span style={{ textTransform: 'uppercase' }}>Adjustment</span>
+            <span
+              style={{
+                fontWeight: 700,
+                color: adjustmentApplied > 0 ? '#4ade80' : '#f87171',
+              }}
+            >
+              {adjustmentApplied > 0 ? '+' : ''}
+              {adjustmentApplied.toLocaleString()}
+            </span>
+          </div>
+        )}
         <div
           style={{
             marginTop: '1rem',
@@ -568,55 +660,111 @@ const PayslipTemplate2 = ({ payroll, editable = false, onSave }) => {
 
       {/* 7. Action Controls (Editable Only) */}
       {editable && (
-        <div
-          style={{
-            marginTop: '1rem',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '12px',
-          }}
-        >
-          <button
-            onClick={() =>
-              setFormData(JSON.parse(JSON.stringify(original || payroll)))
-            }
+        <>
+          <div
             style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: '1px solid #d1d5db',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
+              marginBottom: '12px',
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center',
             }}
           >
-            Reset
-          </button>
-          <button
-            onClick={handleSave}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              backgroundColor: '#4f46e5',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-            }}
-          >
-            {saving ? 'Applying…' : 'Update Payroll'}
-          </button>
-          {!!saveMsg && (
-            <span
+            <div
+              style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+            >
+              <label style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                ADJ
+              </label>
+              <input
+                type="number"
+                value={adjAmount}
+                onChange={(e) => setAdjAmount(Number(e.target.value || 0))}
+                placeholder="Enter adjustment amount"
+                style={{
+                  width: '140px',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                }}
+              />
+            </div>
+            <div
               style={{
-                alignSelf: 'center',
-                fontSize: '0.75rem',
-                color: saveMsg.startsWith('Applied') ? '#065f46' : '#B91C1C',
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+                gap: '6px',
               }}
             >
-              {saveMsg}
-            </span>
-          )}
-        </div>
+              <label style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Reason
+              </label>
+              <input
+                type="text"
+                value={adjNote}
+                onChange={(e) => setAdjNote(e.target.value)}
+                placeholder="Reason for adjustment (optional)"
+                style={{
+                  width: '100%',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                }}
+              />
+            </div>
+          </div>
+          <div
+            style={{
+              marginTop: '1rem',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '12px',
+            }}
+          >
+            <button
+              onClick={() => {
+                setFormData(JSON.parse(JSON.stringify(original || payroll)));
+                setAdjAmount(0);
+                setAdjNote('');
+              }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+              }}
+            >
+              Reset
+            </button>
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: '#4f46e5',
+                color: 'white',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+              }}
+            >
+              {saving ? 'Applying…' : 'Save'}
+            </button>
+            {!!saveMsg && (
+              <span
+                style={{
+                  alignSelf: 'center',
+                  fontSize: '0.75rem',
+                  color: saveMsg.startsWith('Applied') ? '#065f46' : '#B91C1C',
+                }}
+              >
+                {saveMsg}
+              </span>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

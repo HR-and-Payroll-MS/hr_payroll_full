@@ -38,7 +38,7 @@ class Command(BaseCommand):
                 'first_name': 'Admin', 'last_name': 'Test', 
                 'salary': 10000,
                 'join_date': date(2025, 1, 1),
-                'job_title': 'HR Manager'
+                'job_title': 'Manager'
             }
         )
         

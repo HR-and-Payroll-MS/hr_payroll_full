@@ -62,14 +62,14 @@ class PayslipSerializer(serializers.ModelSerializer):
         account = obj.employee.bank_account or ''
         full = f"{bank} {account}".strip()
 
-        # Determine access: only HR Managers or the employee themselves (or superuser) may see full account
+        # Determine access: only Managers or the employee themselves (or superuser) may see full account
         can_view_full = False
         if request and getattr(request, 'user', None) and request.user.is_authenticated:
             user = request.user
             if user.is_superuser:
                 can_view_full = True
-            # HR Manager group
-            if user.groups.filter(name__iexact='HR Manager').exists():
+            # Manager group
+            if user.groups.filter(name__iexact='Manager').exists():
                 can_view_full = True
             # Employee owner
             if hasattr(user, 'employee') and user.employee and user.employee == obj.employee:

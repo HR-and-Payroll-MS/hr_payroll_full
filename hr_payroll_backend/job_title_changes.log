@@ -108,3 +108,25 @@
   File "F:\E\SeniorX\hr_payroll_backend\apps\employees\signals.py", line 265, in notify_employee_changes
     entry += ''.join(traceback.format_stack(limit=10))
 
+2026-02-01T19:56:35.434901 - Employee EMP0102 job_title changed from 'None' to 'Line Manager'
+  File "F:\E\SeniorX\.venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "F:\E\SeniorX\.venv\Lib\site-packages\django\views\decorators\csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "F:\E\SeniorX\.venv\Lib\site-packages\rest_framework\viewsets.py", line 125, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "F:\E\SeniorX\.venv\Lib\site-packages\rest_framework\views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+  File "F:\E\SeniorX\hr_payroll_backend\apps\employees\views.py", line 338, in promote_to_manager
+    employee.save()
+  File "F:\E\SeniorX\hr_payroll_backend\apps\employees\models.py", line 119, in save
+    super().save(*args, **kwargs)
+  File "F:\E\SeniorX\.venv\Lib\site-packages\django\db\models\base.py", line 874, in save
+    self.save_base(
+  File "F:\E\SeniorX\.venv\Lib\site-packages\django\db\models\base.py", line 981, in save_base
+    post_save.send(
+  File "F:\E\SeniorX\.venv\Lib\site-packages\django\dispatch\dispatcher.py", line 209, in send
+    response = receiver(signal=self, sender=sender, **named)
+  File "F:\E\SeniorX\hr_payroll_backend\apps\employees\signals.py", line 265, in notify_employee_changes
+    entry += ''.join(traceback.format_stack(limit=10))
+
