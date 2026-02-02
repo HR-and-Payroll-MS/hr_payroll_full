@@ -34,10 +34,10 @@ export const sidebarList = {
       label: 'Payslips',
       Visible: false,
       sub: [
-        {
-          subPath: 'view_generated_payslips',
-          label: 'View/Edit Generated Payslips',
-        },
+        // {
+        //   subPath: 'view_generated_payslips',
+        //   label: 'View/Edit Generated Payslips',
+        // },
         { subPath: 'my-payslips', label: 'My Payslips' },
       ],
     },
@@ -53,20 +53,20 @@ export const sidebarList = {
         },
       ],
     },
-    {
-      Icons: 'FileBarChart2', // best modern icon for reports & analytics
-      path: null,
-      label: 'Reports',
-      Visible: false,
-      sub: [
-        { subPath: 'payroll_reports', label: 'Payroll Reports' },
-        { subPath: 'tax_reports', label: 'Tax Reports' },
-        {
-          subPath: 'department_wise_paryoll',
-          label: 'Department-Wise Payroll',
-        },
-      ],
-    },
+    // {
+    //   Icons: 'FileBarChart2', // best modern icon for reports & analytics
+    //   path: null,
+    //   label: 'Reports',
+    //   Visible: false,
+    //   sub: [
+    //     { subPath: 'payroll_reports', label: 'Payroll Reports' },
+    //     { subPath: 'tax_reports', label: 'Tax Reports' },
+    //     {
+    //       subPath: 'department_wise_paryoll',
+    //       label: 'Department-Wise Payroll',
+    //     },
+    //   ],
+    // },
     {
       Icons: 'BellRing', // more appropriate than ShieldAlert for notifications
       path: null,

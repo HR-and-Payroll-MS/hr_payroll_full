@@ -48,7 +48,7 @@ function TableStructures({
       const isStatus =
         typeof value === 'string' &&
         ['PRESENT', 'LATE', 'ABSENT', 'PERMISSION', 'LEAVE'].includes(
-          value.toUpperCase()
+          value.toUpperCase(),
         );
 
       let colorClass = 'text-gray-700 dark:text-slate-300';
@@ -79,8 +79,8 @@ function TableStructures({
                 item[0].startsWith('http')
                   ? item[0]
                   : item[0].startsWith('/')
-                  ? item[0]
-                  : `${BASE_URL}${item[0]}`
+                    ? item[0]
+                    : `${BASE_URL}${item[0]}`
               }
               alt={item[1]}
               onError={(e) => {

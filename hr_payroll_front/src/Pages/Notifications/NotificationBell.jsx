@@ -69,7 +69,7 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
     const getRoleBase = (r) => {
       if (!r) return 'Employee';
       const key = Object.keys(roleBaseMap).find(
-        (k) => k === String(r).toLowerCase()
+        (k) => k === String(r).toLowerCase(),
       );
       return key ? roleBaseMap[key] : 'Employee';
     };
@@ -207,7 +207,7 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
                         n.category ||
                           n.notification_type ||
                           n.type ||
-                          '(unknown)'
+                          '(unknown)',
                       );
                     } catch (err) {
                       console.log('error logging notification', err);
@@ -228,22 +228,43 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
                       const rl = String(localRole || '').toLowerCase();
                       const getRoleBaseFrom = (rstr) => {
                         const s = String(rstr || '').toLowerCase();
-                        if (s.includes('line manager') || (s.includes('line') && s.includes('manager'))) return 'department_manager';
-                        if (s.includes('manager') || s.includes('hr') || s.includes('hr manager') || s === 'manager') return 'hr_dashboard';
+                        if (
+                          s.includes('line manager') ||
+                          (s.includes('line') && s.includes('manager'))
+                        )
+                          return 'department_manager';
+                        if (
+                          s.includes('manager') ||
+                          s.includes('hr') ||
+                          s.includes('hr manager') ||
+                          s === 'manager'
+                        )
+                          return 'hr_dashboard';
                         if (s.includes('payroll')) return 'Payroll';
                         if (s.includes('admin')) return 'admin_dashboard';
                         if (s.includes('employee')) return 'Employee';
                         return 'Employee';
                       };
                       const roleBase = getRoleBaseFrom(rl);
-                      if (target.toLowerCase().startsWith('/setting/workschedule') || target.toLowerCase().includes('/setting/workschedule')) {
+                      if (
+                        target
+                          .toLowerCase()
+                          .startsWith('/setting/workschedule') ||
+                        target.toLowerCase().includes('/setting/workschedule')
+                      ) {
                         const finalPath = `/${roleBase}/setting/WorkSchedule`;
-                        console.log('NotificationBell navigating to (finalPath):', finalPath);
+                        console.log(
+                          'NotificationBell navigating to (finalPath):',
+                          finalPath,
+                        );
                         navigate(finalPath);
                         setOpen(false);
                         return;
                       }
-                      console.log('NotificationBell navigating to (target):', target);
+                      console.log(
+                        'NotificationBell navigating to (target):',
+                        target,
+                      );
                       navigate(target);
                       setOpen(false);
                     } else {

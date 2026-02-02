@@ -83,7 +83,8 @@ function GeneratePayroll() {
       const currentMonthName = dayjs().format('MMMM');
       const currentYearNum = new Date().getFullYear();
       return (
-        String(month).trim().toLowerCase() === String(currentMonthName).trim().toLowerCase() &&
+        String(month).trim().toLowerCase() ===
+          String(currentMonthName).trim().toLowerCase() &&
         parseInt(year) === currentYearNum
       );
     } catch (e) {
@@ -327,21 +328,31 @@ function GeneratePayroll() {
   useEffect(() => {
     const onPayslipUpdated = (e) => {
       try {
-        console.debug('payslip-updated event received, refreshing payroll period');
+        console.debug(
+          'payslip-updated event received, refreshing payroll period',
+        );
         fetchPayrollPeriod(true);
       } catch (err) {
         console.error('Failed to refresh payroll after payslip update', err);
       }
     };
     window.addEventListener('payslip-updated', onPayslipUpdated);
-    return () => window.removeEventListener('payslip-updated', onPayslipUpdated);
+    return () =>
+      window.removeEventListener('payslip-updated', onPayslipUpdated);
   }, [fetchPayrollPeriod]);
 
   // Debug logging to help diagnose missing Generate button
   useEffect(() => {
     try {
       // eslint-disable-next-line no-console
-      console.debug('Payroll Debug:', { month, year, periodId, status, userRole, isCurrentMonth });
+      console.debug('Payroll Debug:', {
+        month,
+        year,
+        periodId,
+        status,
+        userRole,
+        isCurrentMonth,
+      });
     } catch (e) {}
   }, [month, year, periodId, status, userRole, isCurrentMonth]);
 
@@ -370,10 +381,16 @@ function GeneratePayroll() {
         return newId;
       }
       // Unexpected: no id in response
-      console.error('createPeriod: created period response missing id', res?.data);
+      console.error(
+        'createPeriod: created period response missing id',
+        res?.data,
+      );
       return null;
     } catch (err) {
-      console.error('createPeriod: error creating period', err?.response || err);
+      console.error(
+        'createPeriod: error creating period',
+        err?.response || err,
+      );
       if (err.response?.status === 400) {
         // Period might already exist — fetch the list and return matching id
         try {
@@ -381,14 +398,19 @@ function GeneratePayroll() {
             params: { month, year },
           });
           const list = listRes.data.results || listRes.data || [];
-          const existing = list.find((p) => p.month === month && Number(p.year) === Number(year));
+          const existing = list.find(
+            (p) => p.month === month && Number(p.year) === Number(year),
+          );
           if (existing) {
             setPeriodId(existing.id);
             setStatus(existing.status || 'draft');
             return existing.id;
           }
         } catch (fetchErr) {
-          console.error('createPeriod: failed to fetch periods after 400', fetchErr);
+          console.error(
+            'createPeriod: failed to fetch periods after 400',
+            fetchErr,
+          );
         }
         return null;
       }
@@ -414,18 +436,26 @@ function GeneratePayroll() {
       if (!currentPeriodId) {
         currentPeriodId = await createPeriod();
       }
-        if (!currentPeriodId) {
-          console.error('GeneratePayroll: no period id available after createPeriod', { periodId, currentPeriodId });
-          throw new Error('Failed to determine payroll period id before generation');
-        }
+      if (!currentPeriodId) {
+        console.error(
+          'GeneratePayroll: no period id available after createPeriod',
+          { periodId, currentPeriodId },
+        );
+        throw new Error(
+          'Failed to determine payroll period id before generation',
+        );
+      }
 
-        const reqUrl = `/payroll/periods/${currentPeriodId}/generate/`;
-        console.log('GeneratePayroll: POST', reqUrl, { tax_code_id: selectedTaxCode, tax_code_version_id: selectedTaxVersion });
+      const reqUrl = `/payroll/periods/${currentPeriodId}/generate/`;
+      console.log('GeneratePayroll: POST', reqUrl, {
+        tax_code_id: selectedTaxCode,
+        tax_code_version_id: selectedTaxVersion,
+      });
 
-        const res = await axiosPrivate.post(reqUrl, {
-          tax_code_id: selectedTaxCode,
-          tax_code_version_id: selectedTaxVersion || undefined,
-        });
+      const res = await axiosPrivate.post(reqUrl, {
+        tax_code_id: selectedTaxCode,
+        tax_code_version_id: selectedTaxVersion || undefined,
+      });
       setStatus(res.data.period?.status || 'generated');
 
       // Refresh to get new payslips
@@ -433,9 +463,11 @@ function GeneratePayroll() {
     } catch (err) {
       console.error('Error generating payroll:', err);
       // Provide clearer UI message for common cases (network, 404 when id missing)
-      const serverMsg = err.response?.data?.error || err.response?.data || err.message;
+      const serverMsg =
+        err.response?.data?.error || err.response?.data || err.message;
       setError(
-        serverMsg || 'Failed to generate payroll. Check server logs or network.'
+        serverMsg ||
+          'Failed to generate payroll. Check server logs or network.',
       );
       // Re-open modal if failed? Maybe not.
     } finally {
@@ -453,17 +485,22 @@ function GeneratePayroll() {
       if (!currentPeriodId) {
         currentPeriodId = await createPeriod();
       }
-        if (!currentPeriodId) {
-          console.error('QuickRegenerate: no period id available after createPeriod', { periodId, currentPeriodId });
-          throw new Error('Failed to determine payroll period id before regeneration');
-        }
+      if (!currentPeriodId) {
+        console.error(
+          'QuickRegenerate: no period id available after createPeriod',
+          { periodId, currentPeriodId },
+        );
+        throw new Error(
+          'Failed to determine payroll period id before regeneration',
+        );
+      }
 
-        const reqUrl = `/payroll/periods/${currentPeriodId}/generate/`;
-        console.log('QuickRegenerate: POST', reqUrl);
-        await axiosPrivate.post(reqUrl, {
-          tax_code_id: selectedTaxCode || undefined,
-          tax_code_version_id: selectedTaxVersion || undefined,
-        });
+      const reqUrl = `/payroll/periods/${currentPeriodId}/generate/`;
+      console.log('QuickRegenerate: POST', reqUrl);
+      await axiosPrivate.post(reqUrl, {
+        tax_code_id: selectedTaxCode || undefined,
+        tax_code_version_id: selectedTaxVersion || undefined,
+      });
       await fetchPayrollPeriod();
       setStatus('generated');
     } catch (err) {
@@ -756,7 +793,8 @@ function GeneratePayroll() {
           {/* PAYROLL OFFICER BUTTONS */}
           {(userRole === 'payroll_officer' || userRole === 'hr_manager') && (
             <>
-                {isCurrentMonth && (!['finalized', 'pending_approval'].includes(status)) && (
+              {isCurrentMonth &&
+                !['finalized', 'pending_approval'].includes(status) && (
                   <button
                     onClick={handleGenerate}
                     disabled={syncing}
@@ -824,20 +862,21 @@ function GeneratePayroll() {
             </>
           )}
 
-          {(userRole === 'hr_manager' || userRole === 'payroll_officer') && status === 'approved' && (
-            <button
-              onClick={handleFinalize}
-              disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
-            >
-              {syncing ? (
-                <RefreshCw size={14} className="animate-spin" />
-              ) : (
-                <Lock size={14} />
-              )}
-              Finalize Payroll
-            </button>
-          )}
+          {(userRole === 'hr_manager' || userRole === 'payroll_officer') &&
+            status === 'approved' && (
+              <button
+                onClick={handleFinalize}
+                disabled={syncing}
+                className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
+              >
+                {syncing ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <Lock size={14} />
+                )}
+                Finalize Payroll
+              </button>
+            )}
 
           {status === 'finalized' && (
             <ExportTable
