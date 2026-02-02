@@ -442,9 +442,9 @@ class ManagerDepartmentAttendanceView(APIView):
         from apps.employees.models import Employee
         from apps.departments.models import Department
         
-        # Normalize group names to uppercase and treat 'Line Manager' as the manager role
+        # Normalize group names to uppercase and treat Line/Department Manager as manager roles
         user_groups = [g.upper() for g in request.user.groups.values_list('name', flat=True)]
-        is_dm = 'LINE MANAGER' in user_groups
+        is_dm = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
         
         managed_depts = Department.objects.filter(manager=request.user.employee)
         
@@ -585,9 +585,9 @@ class OvertimeRequestViewSet(viewsets.ModelViewSet):
             
             # Use same logic as employee visibility to find allowed departments
             user_groups = list(self.request.user.groups.values_list('name', flat=True))
-            # Normalize group names and treat 'Line Manager' as the manager role
+            # Normalize group names and treat Line/Department Manager as manager roles
             user_groups = [g.upper() for g in self.request.user.groups.values_list('name', flat=True)]
-            is_dm = 'LINE MANAGER' in user_groups
+            is_dm = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
             is_hr_admin = any(role in user_groups for role in ['Admin', 'Payroll'])
             
             managed_depts = Department.objects.filter(manager=manager)

@@ -112,30 +112,23 @@ class EmployeeJobSerializer(serializers.Serializer):
             "photo": None,
             "id": None
         }
-        
+
         request = self.context.get('request')
-        
-        if obj.line_manager:
-            data["name"] = obj.line_manager.fullname
-            data["id"] = obj.line_manager.id
-            if obj.line_manager.photo:
+
+        # Use department manager as the single source for line manager display
+        if obj.department and obj.department.manager:
+            mgr = obj.department.manager
+            data["name"] = (
+                f"{mgr.fullname} (Self)" if mgr.id == obj.id else mgr.fullname
+            )
+            data["id"] = mgr.id
+            if mgr.photo:
                 if request:
-                    data["photo"] = request.build_absolute_uri(obj.line_manager.photo.url)
+                    data["photo"] = request.build_absolute_uri(mgr.photo.url)
                 else:
-                    data["photo"] = obj.line_manager.photo.url
+                    data["photo"] = mgr.photo.url
             return data
-        
-        # If no line manager, check if they are the department manager themselves
-        if obj.department and obj.department.manager == obj:
-            data["name"] = f"{obj.fullname} (Self)"
-            data["id"] = obj.id
-            if obj.photo:
-                 if request:
-                     data["photo"] = request.build_absolute_uri(obj.photo.url)
-                 else:
-                     data["photo"] = obj.photo.url
-            return data
-            
+
         return None
 
     def get_workschedule(self, obj):

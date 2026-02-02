@@ -84,8 +84,12 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             if getattr(user, 'is_superuser', False) or any(role in user_groups for role in hr_role_groups):
                 return queryset
 
-            # Line Manager Scoping (non-Manager who manage a dept)
-            is_line_manager = 'LINE MANAGER' in user_groups or 'MANAGER' in user_groups
+            # Line/Department Manager scoping
+            is_line_manager = (
+                'LINE MANAGER' in user_groups
+                or 'MANAGER' in user_groups
+                or 'DEPARTMENT MANAGER' in user_groups
+            )
             if is_line_manager:
                 from apps.departments.models import Department
                 try:
@@ -100,6 +104,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                         managed_dept_ids = [employee.department_id]
                     if managed_dept_ids:
                         return queryset.filter(department_id__in=managed_dept_ids)
+                    # Always allow manager to see their own profile
+                    return queryset.filter(id=employee.id)
                 return queryset.none()
 
             # Regular Employee: only their own record

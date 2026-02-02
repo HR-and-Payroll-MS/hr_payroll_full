@@ -45,9 +45,8 @@ const OvertimeInitiationPage = () => {
 
         // Map to expected frontend shape
         const team = (list || []).map((emp) => ({
-          // Ensure we use the backend primary key when available (emp.id),
-          // fall back to any employee identifier provided.
-          id: emp.id || emp.employee_id,
+          // Use employee primary key, not attendance record id
+          id: emp.employee_id || emp.id,
           name:
             emp.employee_name ||
             emp.employee_name_display ||

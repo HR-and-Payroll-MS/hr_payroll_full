@@ -1,20 +1,23 @@
 """
-Django settings for HR & Payroll Management System.
+Base Django settings for HR & Payroll Management System.
 """
 import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
-
 # Build paths inside the project
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+# Load environment variables from .env folder
+ENVIRONMENT = os.getenv('DJANGO_ENV', 'local').lower()
+ENV_DIR = BASE_DIR / '.env' / f'.{ENVIRONMENT}'
+load_dotenv(ENV_DIR / '.django')
+load_dotenv(ENV_DIR / '.postgres')
 
 # Security settings
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-hr-payroll-dev-key-change-in-production')
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,testserver').split(',')
 
 # Application definition
@@ -25,14 +28,14 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Third-party apps
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'djoser',
     'corsheaders',
-    
+
     # Local apps
     'apps.users',
     'apps.employees',
@@ -79,15 +82,29 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
 
-# Database - SQLite for development
-SQLITE_DB_NAME = os.getenv('SQLITE_DB_NAME', 'data/db.sqlite3')
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / SQLITE_DB_NAME,
+# Database
+DB_ENGINE = os.getenv('DB_ENGINE', 'postgres').lower()
+if DB_ENGINE == 'sqlite':
+    SQLITE_DB_NAME = os.getenv('SQLITE_DB_NAME', 'data/db.sqlite3')
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / SQLITE_DB_NAME,
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('POSTGRES_DB', 'hr_payroll'),
+            'USER': os.getenv('POSTGRES_USER', 'hr_payroll'),
+            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'hr_payroll'),
+            'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
+            'PORT': os.getenv('POSTGRES_PORT', '5432'),
+        }
+    }
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
@@ -156,13 +173,12 @@ DJOSER = {
 }
 
 # CORS Configuration - allow frontend origins
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-]
+CORS_ALLOWED_ORIGINS = os.getenv(
+    'CORS_ALLOWED_ORIGINS',
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000'
+).split(',')
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only in development
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # File upload settings

@@ -25,9 +25,10 @@ function MyProfile({ currStep = 0 }) {
     loading: profileLoading,
   } = useProfile();
   const { refreshTableSilently } = useTableContext();
-  const { axiosPrivate } = useAuth();
+  const { axiosPrivate, auth } = useAuth();
 
-  const employeeId = getLocalData('user_id');
+  const employeeId =
+    profile?.id || auth?.user?.employee_id || getLocalData('user_id');
   const steps = ['General', 'Job', 'Payroll', 'Documents'];
 
   // 2. Local states for editing and form handling

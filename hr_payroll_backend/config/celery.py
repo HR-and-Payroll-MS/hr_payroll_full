@@ -2,6 +2,7 @@ import os
 from celery import Celery
 from django.conf import settings
 
+os.environ.setdefault('DJANGO_ENV', 'local')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
 app = Celery('hr_payroll_backend')

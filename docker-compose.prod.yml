@@ -1,0 +1,102 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./hr_payroll_backend
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements/production.txt
+    env_file:
+      - ./hr_payroll_backend/.env/.production/.django
+      - ./hr_payroll_backend/.env/.production/.postgres
+    environment:
+      DJANGO_ENV: production
+    depends_on:
+      - postgres
+      - redis
+      - mailhog
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8001
+    ports:
+      - '8001:8001'
+    networks:
+      - app_net
+
+  celery:
+    build:
+      context: ./hr_payroll_backend
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements/production.txt
+    env_file:
+      - ./hr_payroll_backend/.env/.production/.django
+      - ./hr_payroll_backend/.env/.production/.postgres
+    environment:
+      DJANGO_ENV: production
+    depends_on:
+      - backend
+      - redis
+    command: celery -A config.celery worker -l info
+    networks:
+      - app_net
+
+  test:
+    build:
+      context: ./hr_payroll_backend
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements/production.txt
+    env_file:
+      - ./hr_payroll_backend/.env/.production/.django
+      - ./hr_payroll_backend/.env/.production/.postgres
+    environment:
+      DJANGO_ENV: production
+    depends_on:
+      - postgres
+      - redis
+    command: python manage.py test
+    networks:
+      - app_net
+
+  postgres:
+    image: postgres:16-alpine
+    env_file:
+      - ./hr_payroll_backend/.env/.production/.postgres
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    networks:
+      - app_net
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - app_net
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - '8025:8025'
+      - '1025:1025'
+    networks:
+      - app_net
+
+  frontend:
+    build:
+      context: ./hr_payroll_front
+      dockerfile: Dockerfile
+      target: prod
+    environment:
+      VITE_API_BASE: http://localhost:8001/api/v1
+    ports:
+      - '8080:80'
+    depends_on:
+      - backend
+    networks:
+      - app_net
+
+volumes:
+  pgdata_prod:
+
+networks:
+  app_net:
+    driver: bridge
