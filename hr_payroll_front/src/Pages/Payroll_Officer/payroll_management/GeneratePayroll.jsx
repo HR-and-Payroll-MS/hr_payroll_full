@@ -357,15 +357,22 @@ function GeneratePayroll() {
   }, [month, year, periodId, status, userRole, isCurrentMonth]);
 
   // Real-time status polling (silent refresh to avoid flicker)
+  // Keeps status in sync when admins change it (e.g., finalized -> draft).
   useEffect(() => {
-    let interval;
-    if (status === 'pending_approval' || status === 'rolled_back') {
-      interval = setInterval(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
         fetchPayrollPeriod(true);
-      }, 5000);
-    }
-    return () => clearInterval(interval);
-  }, [status, fetchPayrollPeriod]);
+      }
+    }, 8000);
+
+    const onFocus = () => fetchPayrollPeriod(true);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchPayrollPeriod]);
 
   // Create period if not exists
   const createPeriod = async () => {

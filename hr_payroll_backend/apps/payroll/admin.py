@@ -1,21 +1,37 @@
 """Admin configuration for Payroll app."""
 from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html
+from django.utils.http import urlencode
 from .models import (
     PayrollPeriod, Payslip, TaxCode, TaxCodeVersion,
     Allowance, Deduction, TaxBracket, EmployeeAllowance, EmployeeDeduction
 )
 
 
-class PayslipInline(admin.TabularInline):
-    model = Payslip
-    extra = 0
-
-
 @admin.register(PayrollPeriod)
 class PayrollPeriodAdmin(admin.ModelAdmin):
     list_display = ['month', 'year', 'status', 'created_at']
     list_filter = ['status', 'year']
-    inlines = [PayslipInline]
+    # Avoid inline payslips to prevent TooManyFieldsSent on large periods.
+    readonly_fields = ['view_payslips']
+
+    def view_payslips(self, obj):
+        url = (
+            reverse('admin:payroll_payslip_changelist')
+            + '?'
+            + urlencode({'period__id__exact': obj.id})
+        )
+        return format_html('<a href="{}">View payslips for this period</a>', url)
+
+    view_payslips.short_description = 'Payslips'
+
+
+@admin.register(Payslip)
+class PayslipAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'period', 'net_pay', 'gross_pay', 'tax_amount', 'has_issues']
+    list_filter = ['period', 'has_issues']
+    search_fields = ['employee__first_name', 'employee__last_name', 'employee__employee_id']
 
 
 class TaxCodeVersionInline(admin.TabularInline):

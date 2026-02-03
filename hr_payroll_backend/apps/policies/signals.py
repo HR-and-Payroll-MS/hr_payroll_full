@@ -11,6 +11,7 @@ import threading
 import sys
 
 from django.db import close_old_connections, OperationalError
+from django.db.utils import InterfaceError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -32,15 +33,21 @@ def _do_notify_and_recalc(instance, created=False):
 
         try:
             employees = Employee.objects.filter(status='Active')
-        except OperationalError:
-            logger.exception('DB OperationalError while querying employees')
+        except (OperationalError, InterfaceError):
+            logger.exception('DB error while querying employees')
             return
 
         action = "Created" if created else "Updated"
         title = f"Policy Update: {instance.section}"
         message = f"The {instance.section} has been {action.lower()}. Please review the changes in the Policy section."
 
-        if employees.exists():
+        try:
+            has_employees = employees.exists()
+        except (OperationalError, InterfaceError):
+            logger.exception('DB error while checking employees.exists()')
+            return
+
+        if has_employees:
             from django.db import transaction
             try:
                 with transaction.atomic():
@@ -55,8 +62,8 @@ def _do_notify_and_recalc(instance, created=False):
                             )
                         except Exception:
                             logger.exception('Failed to create notification for emp %s', getattr(emp, 'id', None))
-            except OperationalError:
-                logger.exception('OperationalError while creating notifications; skipping')
+            except (OperationalError, InterfaceError):
+                logger.exception('DB error while creating notifications; skipping')
 
         if instance.section == 'attendancePolicy':
             try:
@@ -65,8 +72,8 @@ def _do_notify_and_recalc(instance, created=False):
                 today = timezone.localdate()
                 try:
                     today_attendances = Attendance.objects.filter(date=today)
-                except OperationalError:
-                    logger.exception('OperationalError querying Attendance; skipping recalc')
+                except (OperationalError, InterfaceError):
+                    logger.exception('DB error querying Attendance; skipping recalc')
                     return
                 for att in today_attendances:
                     try:

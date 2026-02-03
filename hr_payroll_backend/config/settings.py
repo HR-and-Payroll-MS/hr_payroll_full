@@ -92,6 +92,9 @@ DATABASES = {
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
 
+# Test runner (reuse existing test DB to avoid interactive prompts in Docker)
+TEST_RUNNER = 'config.test_runner.KeepDbTestRunner'
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

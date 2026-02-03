@@ -1,4 +1,5 @@
 """Serializers for Payroll app including TaxCode, Allowance, Deduction."""
+import calendar
 from django.db import transaction
 from rest_framework import serializers
 from .models import (
@@ -163,6 +164,18 @@ class PayrollPeriodCreateSerializer(serializers.ModelSerializer):
         fields = ['month', 'year']
     
     def validate(self, data):
+        # Normalize month to a consistent title-case name
+        month_val = data.get('month')
+        if isinstance(month_val, str):
+            normalized = month_val.strip()
+            if normalized.isdigit():
+                idx = int(normalized)
+                if 1 <= idx <= 12:
+                    normalized = calendar.month_name[idx]
+            elif normalized:
+                normalized = normalized.title()
+            data['month'] = normalized
+
         # Check if period already exists
         if PayrollPeriod.objects.filter(month=data['month'], year=data['year']).exists():
             raise serializers.ValidationError(

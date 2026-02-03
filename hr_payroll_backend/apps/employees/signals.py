@@ -153,6 +153,14 @@ def sync_user_groups(sender, instance, created, **kwargs):
     
     # Get current names to check if we even need to change anything
     current_group_names = set(user.groups.values_list('name', flat=True))
+
+    # Prevent accidental demotion of privileged users when job_title is blank
+    # or doesn't explicitly map to a privileged role.
+    privileged_groups = {'Manager', 'Line Manager', 'Payroll', 'Admin'}
+    has_privileged = bool(current_group_names.intersection(privileged_groups))
+    job_title_maps_to_privileged = any(
+        name in privileged_groups for name in group_names
+    )
     
     # If it's an admin, don't strip their admin groups
     if user.is_staff or user.is_superuser or 'Admin' in current_group_names:
@@ -160,8 +168,17 @@ def sync_user_groups(sender, instance, created, **kwargs):
         for group in target_groups:
            user.groups.add(group)
     else:
-        # For regular users, enforce the specific groups for the title
-        user.groups.set(target_groups)
+        # For regular users, enforce the specific groups for the title.
+        # If the user already has a privileged role and the job_title doesn't
+        # explicitly map to a privileged role, avoid overwriting their groups.
+        if has_privileged and not job_title_maps_to_privileged:
+            # Do not overwrite privileged roles just because job_title is blank
+            # or a non-privileged value. Also avoid adding 'Employee' in this case.
+            for group in target_groups:
+                if group.name != 'Employee':
+                    user.groups.add(group)
+        else:
+            user.groups.set(target_groups)
     
     print(f"SIGNAL: Synced groups for {user.username} based on job title '{instance.job_title}': {list(group_names)}")
 

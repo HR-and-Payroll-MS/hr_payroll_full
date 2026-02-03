@@ -6,7 +6,7 @@ import ViewerLoader from './ViewerLoader';
 import axios from 'axios';
 import Header from '../../../Components/Header';
 import { Generatepayroll } from '../../../Components/Level2Hearder';
-import { axiosPublic } from '../../../api/axiosInstance';
+import useAuth from '../../../Context/AuthContext';
 
 export default function OnPayrollGenerate({
   progress,
@@ -14,6 +14,7 @@ export default function OnPayrollGenerate({
   summary,
   setSummary,
 }) {
+  const { axiosPrivate } = useAuth();
   const printRef = useRef();
   const [popup, setpopup] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -40,7 +41,7 @@ export default function OnPayrollGenerate({
     setLoading(true);
     setError('');
     try {
-      const periodRes = await axiosPublic.get(`/payroll/periods/`, {
+      const periodRes = await axiosPrivate.get(`/payroll/periods/`, {
         params: { month: monthName, year },
       });
       const periods = periodRes.data || [];
@@ -56,7 +57,7 @@ export default function OnPayrollGenerate({
       const pid = periods[0].id;
       setPeriodId(pid);
 
-      const payslipRes = await axiosPublic.get(`/payroll/payslips/`, {
+      const payslipRes = await axiosPrivate.get(`/payroll/payslips/`, {
         params: { period: pid },
       });
       const data = payslipRes.data || [];
@@ -70,7 +71,7 @@ export default function OnPayrollGenerate({
     } catch (err) {
       console.error('Failed to load payslips', err);
       setError(
-        err?.response?.data?.detail || err.message || 'Failed to load payslips'
+        err?.response?.data?.detail || err.message || 'Failed to load payslips',
       );
       setPayslips([]);
       setSelectedPayslip(null);
@@ -112,7 +113,7 @@ export default function OnPayrollGenerate({
           node = container.firstElementChild;
         }
         await new Promise((r) =>
-          requestAnimationFrame(() => requestAnimationFrame(r))
+          requestAnimationFrame(() => requestAnimationFrame(r)),
         );
 
         const blob = await generatePdfBlobFromElement(node);
@@ -122,7 +123,7 @@ export default function OnPayrollGenerate({
         formData.append(
           'pdf_file',
           blob,
-          `payslip_${p.employee.id}_${p.month}.pdf`
+          `payslip_${p.employee.id}_${p.month}.pdf`,
         );
         formData.append('employee_id', p.employee);
         formData.append('payslip_id', p.id);
@@ -149,7 +150,7 @@ export default function OnPayrollGenerate({
 
       setProgress(`Success! All ${total} payslips generated and saved.`);
       alert(
-        `Payroll processed successfully!\n${total} payslips uploaded to server.`
+        `Payroll processed successfully!\n${total} payslips uploaded to server.`,
       );
     } catch (err) {
       console.error('Payslip generation failed:', err);

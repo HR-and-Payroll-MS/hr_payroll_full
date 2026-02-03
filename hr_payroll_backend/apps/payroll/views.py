@@ -1,4 +1,5 @@
 """Views for Payroll app including TaxCode, Allowance, Deduction management."""
+import calendar
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -69,7 +70,12 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
         month = self.request.query_params.get('month')
         year = self.request.query_params.get('year')
         if month:
-            qs = qs.filter(month=month)
+            normalized = str(month).strip()
+            if normalized.isdigit():
+                idx = int(normalized)
+                if 1 <= idx <= 12:
+                    normalized = calendar.month_name[idx]
+            qs = qs.filter(month__iexact=normalized)
         if year:
             try:
                 qs = qs.filter(year=int(year))
@@ -585,7 +591,12 @@ class PayrollReportsView(APIView):
         
         queryset = Payslip.objects.select_related('employee', 'period', 'tax_code').all()
         if month and year:
-            queryset = queryset.filter(period__month=month, period__year=year)
+            normalized = str(month).strip()
+            if normalized.isdigit():
+                idx = int(normalized)
+                if 1 <= idx <= 12:
+                    normalized = calendar.month_name[idx]
+            queryset = queryset.filter(period__month__iexact=normalized, period__year=year)
         
         return Response({'results': PayslipSerializer(queryset, many=True, context={'request': request}).data})
 

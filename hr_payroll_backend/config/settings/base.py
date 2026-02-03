@@ -2,6 +2,7 @@
 Base Django settings for HR & Payroll Management System.
 """
 import os
+import sys
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -85,7 +86,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
 # Database
-DB_ENGINE = os.getenv('DB_ENGINE', 'postgres').lower()
+IS_TESTING = (
+    os.getenv('PYTEST_CURRENT_TEST') is not None
+    or any(arg in ('test', 'pytest') or arg.endswith('pytest') for arg in sys.argv)
+)
+DB_ENGINE = os.getenv('DB_ENGINE')
+if not DB_ENGINE:
+    DB_ENGINE = 'sqlite' if IS_TESTING else 'postgres'
+DB_ENGINE = DB_ENGINE.lower()
 if DB_ENGINE == 'sqlite':
     SQLITE_DB_NAME = os.getenv('SQLITE_DB_NAME', 'data/db.sqlite3')
     DATABASES = {
@@ -108,6 +116,9 @@ else:
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+
+# Test runner (reuse existing test DB to avoid interactive prompts)
+TEST_RUNNER = 'config.test_runner.KeepDbTestRunner'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

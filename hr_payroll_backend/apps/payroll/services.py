@@ -1007,6 +1007,8 @@ def rollback_payroll(period: PayrollPeriod, rolled_back_by: Employee, reason: st
 
 def finalize_payroll(period: PayrollPeriod, finalized_by: Employee):
     """Finalize payroll and send notifications to employees."""
+    if period.status == 'finalized':
+        return period
     if period.status != 'approved':
         raise ValueError(f"Cannot finalize payroll in '{period.status}' status")
     
