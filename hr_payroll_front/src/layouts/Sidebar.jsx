@@ -14,7 +14,6 @@ export default function Sidebar() {
     Manager: 'hr_dashboard',
     Employee: 'employee',
     'Line Manager': 'department_manager',
-    Admin: 'admin_dashboard', // Added Admin path just in case
   };
 
   const { auth, axiosPrivate, logout } = useAuth();
@@ -32,8 +31,8 @@ export default function Sidebar() {
 
   // Initialize list when role changes
   useEffect(() => {
-    const pRole = role === 'Department Manager' ? 'Manager' : role; // Handle mapped roles if needed
-    // sidebarList keys: Payroll, Manager, Employee, "Line Manager", Admin
+    const pRole = role === 'Department Manager' ? 'Line Manager' : role; // Handle mapped roles if needed
+    // sidebarList keys: Payroll, Manager, Employee, "Line Manager"
     const initialList = sidebarList[pRole] || sidebarList['Employee'] || [];
     setList(initialList);
     fetchLeaveCount();
@@ -47,15 +46,12 @@ export default function Sidebar() {
       const roles = [auth?.user?.role, ...(auth?.user?.groups || [])]
         .filter(Boolean)
         .map((r) => String(r).toLowerCase());
-      const isHR =
-        roles.some((r) => r.includes('hr')) ||
-        String(role).toLowerCase() === 'payroll';
-      // HR Manager includes the word "manager"; only treat as manager bucket if not HR
-      const isManagerOnly = !isHR && roles.some((r) => r.includes('manager'));
+      const isLineManager = roles.some((r) => r.includes('line manager'));
+      const isManager = !isLineManager && roles.some((r) => r.includes('manager'));
 
       const actionableStatuses = [];
-      if (isManagerOnly) actionableStatuses.push('pending');
-      if (isHR) actionableStatuses.push('manager_approved');
+      if (isLineManager) actionableStatuses.push('pending');
+      if (isManager) actionableStatuses.push('manager_approved');
 
       if (actionableStatuses.length === 0) {
         setLeaveCount(0);
@@ -101,22 +97,13 @@ export default function Sidebar() {
 
   // Inject badge into list
   useEffect(() => {
-    const isHR =
-      auth?.user?.employee?.position?.toLowerCase().includes('hr') ||
-      auth?.user?.employee?.position
-        ?.toLowerCase()
-        .includes('human resources') ||
-      role === 'Payroll';
-
     setList((prevList) =>
       prevList.map((item) => {
         // Show badge if item is Leave Management and user is a Manager or HR
         if (
           item.label === 'Leave Management' &&
           (role === 'Manager' ||
-            role === 'Line Manager' ||
-            role === 'Department Manager' ||
-            isHR)
+            role === 'Line Manager')
         ) {
           return { ...item, badge: leaveCount };
         }

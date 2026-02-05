@@ -12,7 +12,7 @@ const FAQPage = () => {
 
   // LOGGING: Check User Role
   const role = getLocalData('role');
-  const [userRole] = useState(role || 'HR_ADMIN');
+  const [userRole] = useState(role || 'Manager');
   console.log("FAQPage: Initialized. User Role LocalStorage:", role, "State:", userRole);
 
   const { axiosPrivate } = useAuth();
@@ -104,7 +104,7 @@ const FAQPage = () => {
   const filteredFaqs = (Array.isArray(faqs) ? faqs : []).filter((faq) => {
     const matchesSearch = faq.question.toLowerCase().includes(searchTerm.toLowerCase());
     // STRICT VISIBILITY CHECK FOR DEBUGGING
-    const isVisible = (userRole === 'Manager' || userRole === 'HR_ADMIN') 
+    const isVisible = (userRole === 'Manager') 
                       ? true 
                       : (faq.status === 'published');
     
@@ -126,7 +126,7 @@ const FAQPage = () => {
         </div>
         
         {/* Action Button */}
-        {(userRole === 'Manager' || userRole === 'HR_ADMIN') && (
+        {(userRole === 'Manager') && (
           <div 
             onClick={handleAddNew}
             className="flex bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 items-center cursor-pointer px-5 py-2.5 rounded-md active:scale-95 transition-all shadow-lg"

@@ -27,7 +27,7 @@ const RenderNestedPolicyFields = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState(null);
   
-  const isManagement = userRole === 'HR Manager' || userRole === 'Manager' || userRole === 'Admin' || userRole === 'Payroll';
+  const isManagement = userRole === 'Manager' || userRole === 'Payroll';
   const isEditing = !!editMode?.[sectionKey] && isManagement;
 
   // useMemo MUST be called before any early return to maintain hook order

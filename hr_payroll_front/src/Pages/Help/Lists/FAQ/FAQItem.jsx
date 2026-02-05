@@ -27,7 +27,7 @@ const FAQItem = ({ faq, userRole, onEdit, onDelete }) => {
               {faq.category}
             </span>
             {/* HR Status Badge */}
-            {userRole === 'HR_ADMIN' && faq.status === 'draft' && (
+            {userRole === 'Manager' && faq.status === 'draft' && (
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-600 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded">
                 Draft
               </span>
@@ -62,7 +62,7 @@ const FAQItem = ({ faq, userRole, onEdit, onDelete }) => {
             </p>
             
             {/* HR ACTIONS */}
-            {(userRole === 'HR_ADMIN' || userRole === 'Manager') && (
+            {(userRole === 'Manager') && (
               <div className="mt-6 flex gap-5 justify-end border-t border-dashed border-gray-100 dark:border-slate-800 pt-4">
                 <button 
                   onClick={(e) => { e.stopPropagation(); onEdit(faq); }}

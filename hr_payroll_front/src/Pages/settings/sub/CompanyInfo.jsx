@@ -12,7 +12,7 @@ export default function CompanyInfo() {
 
     // Get User Role
     const userRole = getLocalData('role'); 
-    const canEdit = userRole === "Manager" || userRole === "ADMIN";
+    const canEdit = userRole === "Manager";
 
     const sanitizeData = (data) => {
         // Ensure HTTPS on website
@@ -54,7 +54,7 @@ export default function CompanyInfo() {
         fetchCompanyData();
     }, [axiosPrivate]);
 
-    // This function updates the state as the HR manager types
+    // This function updates the state as the manager types
     const handleChange = (e) => {
         const { name, value } = e.target;
         setCompanyData(prev => ({ ...prev, [name]: value }));

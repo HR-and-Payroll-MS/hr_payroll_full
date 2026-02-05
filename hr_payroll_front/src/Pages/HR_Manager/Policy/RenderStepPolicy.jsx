@@ -43,7 +43,7 @@ const RenderStepPolicy = ({
 }) => {
   const sectionKey = stepMap[currentStep];
 
-  const isManagement = userRole === 'HR Manager' || userRole === 'Manager' || userRole === 'Admin' || userRole === 'Payroll';
+  const isManagement = userRole === 'Manager' || userRole === 'Payroll';
 
   if (!sectionKey) return null;
 

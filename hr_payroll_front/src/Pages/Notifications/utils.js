@@ -24,19 +24,11 @@ export function notificationIcon(category) {
   }
 }
 
-// export const ROLE_SEND_PERMISSIONS = {
-//   SYSTEM_ADMIN: ["system","hr","attendance","payroll"],
-//   HR_MANAGER: ["hr","attendance","leave","announcement"],
-//   PAYROLL_OFFICER: ["payroll","announcement"],
-//   DEPARTMENT_MANAGER: ["leave","attendance","announcement"],
-//   EMPLOYEE: [],
-// };
 export const ROLE_SEND_PERMISSIONS = {
-  SYSTEM_ADMIN: [{content:"system"},{content:"hr"},{content:"attendance"},{content:"payroll"}],
-  HR_MANAGER: [{content:"hr"},{content:"attendance"},{content:"leave"},{content:"announcement"}],
-  PAYROLL_OFFICER: ["payroll","announcement"],
-  DEPARTMENT_MANAGER: ["leave","attendance","announcement"],
-  EMPLOYEE: [],
+  Manager: [{ content: "attendance" }, { content: "leave" }, { content: "announcement" }],
+  Payroll: ["payroll", "announcement"],
+  "Line Manager": ["leave", "attendance", "announcement"],
+  Employee: [],
 };
 
 const status = [
@@ -48,10 +40,9 @@ const status = [
   ];
 
 export const ROLE_RECEIVE_TYPES = {
-  SYSTEM_ADMIN: ["system","hr","attendance","payroll","leave"],
-  HR_MANAGER: ["hr","attendance","leave","system"],
-  PAYROLL_OFFICER: ["payroll","system"],
-  DEPARTMENT_MANAGER: ["leave","attendance","hr","system"],
-  EMPLOYEE: ["hr","leave","attendance","system"],
+  Manager: ["attendance", "leave", "system"],
+  Payroll: ["payroll", "system"],
+  "Line Manager": ["leave", "attendance", "system"],
+  Employee: ["leave", "attendance", "system"],
 };
 // Helper functions (format date/time, filter notifications, sort, etc).

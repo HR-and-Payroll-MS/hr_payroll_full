@@ -18,7 +18,7 @@ export default function AnnouncementDetails({ announcement, onClose, onEdit }) {
         <SocialPost announcement={announcement} isDetailView={true} />
       </div>
       <div className="p-4 border-t flex justify-between items-center dark:bg-slate-800 bg-slate-50">
-        <span className="text-[10px] font-black text-slate-400 uppercase">Admin Mode</span>
+        <span className="text-[10px] font-black text-slate-400 uppercase">Manager Mode</span>
         <div className="flex gap-2">
           <button 
             onClick={() => { onEdit(announcement); onClose(); }} 

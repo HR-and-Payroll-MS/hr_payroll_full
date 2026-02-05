@@ -45,7 +45,7 @@ def leave_request_notification(sender, instance, created, **kwargs):
                 recipient=instance.employee,
                 sender=None,
                 title="Leave Request: Manager Approved",
-                message=f"Your {instance.leave_type} leave request has been approved by your manager and is now pending HR approval.",
+                message=f"Your {instance.leave_type} leave request has been approved by your manager and is now pending manager approval.",
                 notification_type='info',
                 link=f"/leaves/{instance.id}"
             )

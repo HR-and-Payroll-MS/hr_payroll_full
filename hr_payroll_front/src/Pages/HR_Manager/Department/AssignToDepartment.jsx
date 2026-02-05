@@ -207,7 +207,7 @@ const AssignToDepartment = () => {
                             <h2 className="font-semibold text-slate-700 dark:text-slate-200">3. Line Manager</h2>
                         </div>
                         <div className="relative z-20">
-                             <p className="text-xs text-slate-500 mb-2">Defaults to Department Manager. Search to override.</p>
+                             <p className="text-xs text-slate-500 mb-2">Defaults to Line Manager. Search to override.</p>
                              <InputField 
                                 maxWidth='w-full' 
                                 icon={true} 

@@ -33,7 +33,7 @@ export default function SendNotificationPage() {
 
   const notificationTypes = [
     { content: "system" },
-    { content: "hr" },
+    { content: "announcement" },
     { content: "leave" },
     { content: "attendance" },
     { content: "payroll" },
@@ -51,9 +51,9 @@ export default function SendNotificationPage() {
 
   // Build groups from predefined roles + dynamic departments
   const baseGroups = [
+    { content: "Manager" },
+    { content: "Line Manager" },
     { content: "Payroll" },
-    { content: "HR" },
-    { content: "Management" },
     { content: "IT" },
     { content: "Marketing" },
     { content: "Interns" },
@@ -260,7 +260,7 @@ export default function SendNotificationPage() {
                Recipient
              </label>
              <div className="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded h-10 flex items-center px-3 text-xs font-bold text-slate-600 dark:text-slate-400">
-               Action: Notify Department Manager
+               Action: Notify Line Manager
              </div>
           </div>
           

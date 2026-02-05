@@ -33,7 +33,7 @@ const getMediaUrl = (path) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
   // Derive host from API base, stripping the /api/v1 suffix
-  const apiBase = 'http://localhost:8001/api/v1';
+  const apiBase = 'http://localhost:8000/api/v1';
   const hostBase = apiBase.replace(/\/api\/v\d+$/, '');
   return `${hostBase}${path}`;
 };

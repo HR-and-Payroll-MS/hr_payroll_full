@@ -23,6 +23,7 @@ db.sqlite3
 # Django
 local_settings.py
 media/
+logs/
 
 # Tooling caches
 .mypy_cache/

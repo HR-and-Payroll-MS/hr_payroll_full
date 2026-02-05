@@ -11,10 +11,10 @@ export default function useNotificationStore(initial = []) {
       title: payload.title,
       message: payload.message,
       type: payload.type || "ANNOUNCEMENT",
-      category: payload.category || "hr",
+      category: payload.category || "system",
       createdAt: new Date().toISOString(),
       unread: true,
-      senderRole: payload.senderRole || "HR_MANAGER",
+      senderRole: payload.senderRole || "Manager",
       receivers: payload.receivers || ["ALL"],
       meta: payload.meta || {},
     };

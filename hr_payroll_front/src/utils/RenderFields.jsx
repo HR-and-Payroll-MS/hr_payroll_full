@@ -136,10 +136,10 @@ const renderSpecialField = (sectionKey, key, value, handleInputChange) => {
               }
           }
           
-          // Also check employees who are Department Managers in this department
+            // Also check employees who are Line Managers in this department
           const deptManagers = employeesData.filter(e => 
               (e.department === dept.name || e.job?.department === dept.name) && 
-              (e.position === 'Department Manager' || e.job?.jobtitle === 'Department Manager' || e.jobtitle === 'Department Manager')
+              (e.position === 'Line Manager' || e.job?.jobtitle === 'Line Manager' || e.jobtitle === 'Line Manager')
           ) || [];
           
           deptManagers.forEach(emp => {

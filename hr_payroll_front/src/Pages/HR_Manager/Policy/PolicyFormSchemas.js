@@ -33,8 +33,8 @@ export const policyFormSchemas = {
     },
     approvalWorkflow: {
       annualLeave: { type: "text", label: "Approval Step", placeholder: "e.g. manager" },
-      sickLeave: { type: "text", label: "Approval Step", placeholder: "e.g. hr" },
-      maternityLeave: { type: "text", label: "Approval Step", placeholder: "e.g. hr" },
+      sickLeave: { type: "text", label: "Approval Step", placeholder: "e.g. line_manager" },
+      maternityLeave: { type: "text", label: "Approval Step", placeholder: "e.g. manager" },
     },
   },
 
@@ -84,9 +84,9 @@ salaryStructurePolicy: {
           "All",
           "Department 1",
           "Department 2",
-          "HR manager",
-          "Department managers",
-          "Payroll officers",
+          "Manager",
+          "Line Manager",
+          "Payroll",
         ],
       },
     },

@@ -6,7 +6,7 @@ import useOutside from './useOutside';
 import Icon from '../../Components/Icon';
 import { useNotifications } from '../../Context/NotificationProvider';
 
-export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
+export default function NotificationBell({ role = 'Employee', onOpenCenter }) {
   const notifications = useNotifications();
   // Safe check in case hook is used outside provider
   if (!notifications) return null;
@@ -16,7 +16,7 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
 
   const navigate = useNavigate();
   const auth = useAuth();
-  const currentRole = auth?.user?.role || role || 'EMPLOYEE';
+  const currentRole = auth?.user?.role || role || 'Employee';
 
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -26,8 +26,8 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
     if (!n.receivers) return true;
     return (
       n.receivers.includes('ALL') ||
-      n.receivers.includes(role) ||
-      ROLE_RECEIVE_TYPES[role]?.includes(n.category)
+      n.receivers.includes(currentRole) ||
+      ROLE_RECEIVE_TYPES[currentRole]?.includes(n.category)
     );
   };
 
@@ -63,8 +63,6 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
       'line manager': 'department_manager',
       'department manager': 'department_manager',
       manager: 'hr_dashboard',
-      admin: 'admin_dashboard',
-      hr: 'hr_dashboard',
     };
     const getRoleBase = (r) => {
       if (!r) return 'Employee';
@@ -125,7 +123,7 @@ export default function NotificationBell({ role = 'EMPLOYEE', onOpenCenter }) {
       if (roleNorm.includes('employee')) return '/Employee/Request';
       if (roleNorm.includes('line manager'))
         return '/department_manager/Approve_Reject';
-      if (roleNorm.includes('manager') || roleNorm.includes('hr'))
+      if (roleNorm.includes('manager'))
         return '/hr_dashboard/Approve_Reject';
       return '/Employee/Request';
     }

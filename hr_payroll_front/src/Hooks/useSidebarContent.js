@@ -87,62 +87,6 @@ export const sidebarList = {
         { subPath: '/logout', label: 'Logout' },
       ],
     },
-  ],
-
-  Manager: [
-    {
-      Icons: 'Users',
-      path: null,
-      label: 'Employee Management',
-      Visible: false,
-      sub: [
-        { subPath: 'Employee_Directory', label: 'Employee Directory' },
-        { subPath: 'AddEmployee', label: 'Add Employee' },
-        { subPath: 'PromoteEmployee', label: 'Promote/Demote Employee' },
-        { subPath: 'AssignDepartment', label: 'Assign to Department' },
-        // {subPath:"View_Employee",label:"Manage Employee Accounts"},
-        { subPath: 'org-chart', label: 'Upload Documents' },
-      ],
-    },
-    {
-      Icons: 'BookA',
-      path: null,
-      label: 'Attendance',
-      Visible: false,
-      sub: [
-        // { subPath: 'Employee_Attendance', label: 'Employee Attendance' },
-        { subPath: 'Department_Attendance', label: 'Department Attendance' },
-        { subPath: 'myattendance', label: 'My Attendance' },
-      ],
-    },
-    {
-      Icons: 'Timer',
-      path: null,
-      label: 'Leave Management',
-      Visible: false,
-      sub: [
-        {
-          subPath: 'Approve_Reject',
-          label: 'Approve/Reject Requests',
-        },
-        // { subPath: 'Employee/Directory', label: 'Manage Holidays' },
-        // { subPath: 'Modal_Test', label: 'Manage Time Off Requests' },
-      ],
-    },
-    {
-      Icons: 'Receipt',
-      path: 'my-payslips',
-      label: 'My Payslips',
-      Visible: false,
-      sub: null,
-    },
-    {
-      Icons: 'Timer',
-      path: 'Announcement',
-      label: 'Announcement/News',
-      Visible: false,
-      sub: false,
-    },
     // {
     //   Icons: 'Calendar',
     //   path: null,
@@ -188,7 +132,7 @@ export const sidebarList = {
     // {
     //   Icons: 'ShieldAlert',
     //   path: null,
-    //   label: 'System Admin',
+    //   label: 'System Manager',
     //   Visible: false,
     //   sub: [
     //     { subPath: '/', label: 'Assign Roles & Permissions' },
@@ -336,82 +280,6 @@ export const sidebarList = {
       label: 'My Payslips',
       Visible: false,
       sub: null,
-    },
-  ],
-
-  Admin: [
-    {
-      path: null,
-      label: 'M Employee',
-      Visible: true,
-      sub: [
-        { subPath: 'Employee/ManageEmployee', label: 'Manage Employee' },
-        { subPath: 'Employee/Directory', label: 'Directory' },
-        { subPath: 'org-chart', label: 'ORG Chart' },
-      ],
-    },
-    {
-      path: null,
-      label: 'M Checklist',
-      Visible: false,
-      sub: [
-        { subPath: '/', label: 'To-Do' },
-        { subPath: '/', label: 'Onboarding' },
-        { subPath: '/', label: 'Offboarding' },
-        { subPath: '/', label: 'Setting' },
-      ],
-    },
-    {
-      path: null,
-      label: 'M Time Off',
-      Visible: false,
-      sub: [
-        { subPath: '/', label: 'My Time Off' },
-        { subPath: '/', label: 'Team Time Off' },
-        { subPath: '/', label: 'Employee Time Off' },
-        { subPath: '/', label: 'Settings' },
-      ],
-    },
-    {
-      path: null,
-      label: 'M Attendance',
-      Visible: false,
-      sub: [
-        { subPath: '/', label: 'My Attendance' },
-        { subPath: '/', label: 'Team Attendance' },
-        { subPath: '/', label: 'Employee Attendance' },
-        { subPath: '/', label: 'Settings' },
-      ],
-    },
-    {
-      path: 'null',
-      label: 'M Payroll',
-      Visible: false,
-      sub: [
-        { subPath: '/', label: 'Manage Employee' },
-        { subPath: '/', label: 'Directory' },
-        { subPath: '/', label: 'ORG Chart' },
-      ],
-    },
-    {
-      path: 'null',
-      label: 'M Performance',
-      Visible: false,
-      sub: [
-        { subPath: '/', label: 'Manage Employee' },
-        { subPath: '/', label: 'Directory' },
-        { subPath: '/', label: 'ORG Chart' },
-      ],
-    },
-    {
-      path: null,
-      label: 'M Recruitment',
-      Visible: false,
-      sub: [
-        { subPath: '/', label: 'Jobs' },
-        { subPath: '/', label: 'Candidates' },
-        { subPath: '/', label: 'Settings' },
-      ],
     },
   ],
 };

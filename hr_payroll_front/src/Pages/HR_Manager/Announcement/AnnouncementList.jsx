@@ -22,7 +22,7 @@ export default function AnnouncementList({ announcements = [], onOpen }) {
         <AnnouncementSearch setPriority={setPriority} setQ={setQ}/>
         <div className="flex gap-2">
           <button onClick={() => setViewMode('feed')} className={`text-[10px] font-black px-4 py-1.5 rounded-full border transition-all ${viewMode === 'feed' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>NEWS FEED</button>
-          <button onClick={() => setViewMode('list')} className={`text-[10px] font-black px-4 py-1.5 rounded-full border transition-all ${viewMode === 'list' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>ADMIN LIST</button>
+          <button onClick={() => setViewMode('list')} className={`text-[10px] font-black px-4 py-1.5 rounded-full border transition-all ${viewMode === 'list' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>MANAGER LIST</button>
         </div>
       </div>
 

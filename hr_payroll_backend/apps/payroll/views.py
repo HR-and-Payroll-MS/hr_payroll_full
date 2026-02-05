@@ -36,16 +36,16 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
     - POST /payroll/periods/ - Create new payroll period
     - GET /payroll/periods/{id}/ - Get payroll period with payslips
     - POST /payroll/periods/{id}/generate/ - Generate payslips
-    - POST /payroll/periods/{id}/submit/ - Submit for HR approval
-    - POST /payroll/periods/{id}/approve/ - HR approves payroll
-    - POST /payroll/periods/{id}/rollback/ - HR rolls back payroll
-    - POST /payroll/periods/{id}/finalize/ - HR finalizes payroll
+    - POST /payroll/periods/{id}/submit/ - Submit for Manager approval
+    - POST /payroll/periods/{id}/approve/ - Manager approves payroll
+    - POST /payroll/periods/{id}/rollback/ - Manager rolls back payroll
+    - POST /payroll/periods/{id}/finalize/ - Manager finalizes payroll
     """
     def get_queryset(self):
         """
         Filter payroll periods based on user role and status.
-        Payroll Officers see everything.
-        HR Managers only see submitted, approved, and finalized payrolls.
+        Payroll users see everything.
+        Managers only see submitted, approved, and finalized payrolls.
         """
         user = self.request.user
         if not user.is_authenticated:
@@ -55,15 +55,15 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
         qs = PayrollPeriod.objects.prefetch_related('payslips', 'approval_logs').all()
 
         user_groups = [g.name.upper() for g in user.groups.all()]
-        is_hr_manager = any(r in user_groups for r in ['HR MANAGER', 'MANAGER', 'ADMIN'])
-        is_payroll_officer = 'PAYROLL' in user_groups
+        is_manager = any(r in user_groups for r in ['MANAGER', 'ADMIN'])
+        is_payroll_officer = 'PAYROLL' in user_groups or 'ADMIN' in user_groups
 
         if user.is_superuser:
             pass  # keep full queryset
-        elif is_hr_manager and not is_payroll_officer:
+        elif is_manager and not is_payroll_officer:
             qs = qs.filter(status__in=['pending_approval', 'approved', 'finalized', 'rolled_back'])
         else:
-            pass  # Payroll Officer: keep full queryset
+            pass  # Payroll: keep full queryset
 
         # Apply server-side filters: month/year
         month = self.request.query_params.get('month')
@@ -119,7 +119,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], url_path='submit')
     def submit(self, request, pk=None):
-        """Submit payroll for HR Manager approval."""
+        """Submit payroll for Manager approval."""
         period = self.get_object()
         employee = getattr(request.user, 'employee', None)
         notes = request.data.get('notes', '')
@@ -127,12 +127,12 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
         try:
             period = submit_payroll(period, submitted_by=employee, notes=notes)
             
-            # Notify HR Managers
-            self._notify_hr_managers(period, 'Payroll Submitted for Approval',
+            # Notify Managers
+            self._notify_managers(period, 'Payroll Submitted for Approval',
                 f'Payroll for {period.month} {period.year} has been submitted for your review.')
             
             return Response({
-                'message': f'Payroll submitted for HR approval',
+                'message': f'Payroll submitted for manager approval',
                 'period': PayrollPeriodSerializer(period, context={'request': request}).data
             })
         except ValueError as e:
@@ -140,22 +140,22 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
-        """HR Manager approves the payroll."""
+        """Manager approves the payroll."""
         period = self.get_object()
         employee = getattr(request.user, 'employee', None)
         notes = request.data.get('notes', '')
         
-        # Check if user is HR Manager
-        if not request.user.groups.filter(name='HR Manager').exists():
+        # Check if user is Manager
+        if not request.user.groups.filter(name='Manager').exists():
             return Response(
-                {'error': 'Only HR Managers can approve payroll'},
+                {'error': 'Only Managers can approve payroll'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
         try:
             period = approve_payroll(period, approved_by=employee, notes=notes)
             
-            # Notify payroll officer
+            # Notify Payroll
             if period.submitted_by:
                 Notification.objects.create(
                     recipient=period.submitted_by,
@@ -174,7 +174,7 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], url_path='rollback')
     def rollback(self, request, pk=None):
-        """HR Manager rolls back payroll to Payroll Officer for corrections."""
+        """Manager rolls back payroll to Payroll for corrections."""
         period = self.get_object()
         employee = getattr(request.user, 'employee', None)
         reason = request.data.get('reason', '')
@@ -185,17 +185,17 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if user is HR Manager
-        if not request.user.groups.filter(name='HR Manager').exists():
+        # Check if user is Manager
+        if not request.user.groups.filter(name='Manager').exists():
             return Response(
-                {'error': 'Only HR Managers can rollback payroll'},
+                {'error': 'Only Managers can rollback payroll'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
         try:
             period = rollback_payroll(period, rolled_back_by=employee, reason=reason)
             
-            # Notify payroll officer
+            # Notify Payroll
             if period.submitted_by:
                 Notification.objects.create(
                     recipient=period.submitted_by,
@@ -214,14 +214,14 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], url_path='finalize')
     def finalize(self, request, pk=None):
-        """HR Manager finalizes payroll and sends notifications to all employees."""
+        """Manager finalizes payroll and sends notifications to all employees."""
         period = self.get_object()
         employee = getattr(request.user, 'employee', None)
         
-        # Check if user is HR Manager
-        if not request.user.groups.filter(name='HR Manager').exists():
+        # Check if user is Manager
+        if not request.user.groups.filter(name='Manager').exists():
             return Response(
-                {'error': 'Only HR Managers can finalize payroll'},
+                {'error': 'Only Managers can finalize payroll'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -237,17 +237,18 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='reopen')
     def reopen(self, request, pk=None):
-        """Reopen a generated or rolled back payroll period to 'draft' for editing (Payroll Officer)."""
+        """Reopen a generated or rolled back payroll period to 'draft' for editing (Payroll)."""
         period = self.get_object()
 
         user = request.user
         is_payroll_officer = (
             user.is_superuser
-            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__iexact='Payroll').exists()
             or user.groups.filter(name__icontains='PAYROLL').exists()
+            or user.groups.filter(name__iexact='Admin').exists()
         )
         if not is_payroll_officer:
-            return Response({'error': 'Only Payroll Officers can reopen payroll to draft'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'error': 'Only Payroll users can reopen payroll to draft'}, status=status.HTTP_403_FORBIDDEN)
 
         if period.status not in ['generated', 'rolled_back']:
             return Response({'error': f"Cannot reopen payroll in '{period.status}' status"}, status=status.HTTP_400_BAD_REQUEST)
@@ -267,14 +268,14 @@ class PayrollPeriodViewSet(viewsets.ModelViewSet):
 
         return Response({'message': 'Payroll reopened to draft', 'period': PayrollPeriodSerializer(period, context={'request': request}).data})
     
-    def _notify_hr_managers(self, period, title, message):
-        """Send notification to all HR Managers."""
+    def _notify_managers(self, period, title, message):
+        """Send notification to all Managers."""
         from apps.employees.models import Employee
         from django.contrib.auth import get_user_model
         User = get_user_model()
         
-        hr_users = User.objects.filter(groups__name='HR Manager')
-        for user in hr_users:
+        manager_users = User.objects.filter(groups__name='Manager')
+        for user in manager_users:
             if user.employee:
                 Notification.objects.create(
                     recipient=user.employee,
@@ -291,7 +292,7 @@ class PayslipViewSet(viewsets.ModelViewSet):
     
     - GET /payroll/payslips/ - List payslips (filtered by period, employee)
     - GET /payroll/payslips/{id}/ - Get single payslip
-    - PATCH /payroll/payslips/{id}/ - Update payslip (Payroll Officer only)
+    - PATCH /payroll/payslips/{id}/ - Update payslip (Payroll only)
     - POST /payroll/payslips/{id}/contact/ - Send message to employee about issues
     """
     queryset = Payslip.objects.select_related('employee', 'period', 'tax_code', 'tax_code_version').all()
@@ -317,7 +318,7 @@ class PayslipViewSet(viewsets.ModelViewSet):
         
         # If regular employee, only show their own payslips
         user = self.request.user
-        if not user.groups.filter(name__in=['HR Manager', 'Payroll Officer']).exists():
+        if not user.groups.filter(name__in=['Manager', 'Payroll', 'Admin']).exists():
             if hasattr(user, 'employee') and user.employee:
                 queryset = queryset.filter(employee=user.employee)
         
@@ -366,15 +367,16 @@ class PayslipViewSet(viewsets.ModelViewSet):
         payslip = self.get_object()
         period = payslip.period
 
-        # Only Payroll Officers (or superusers) can regenerate
+        # Only Payroll (or superusers) can regenerate
         user = request.user
         is_payroll_officer = (
             user.is_superuser
-            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__iexact='Payroll').exists()
             or user.groups.filter(name__icontains='PAYROLL').exists()
+            or user.groups.filter(name__iexact='Admin').exists()
         )
         if not is_payroll_officer:
-            return Response({'error': 'Only Payroll Officers can regenerate payslips'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'error': 'Only Payroll users can regenerate payslips'}, status=status.HTTP_403_FORBIDDEN)
 
         # Check period status
         if period.status not in ['draft', 'rolled_back', 'generated']:
@@ -451,17 +453,17 @@ class PayslipViewSet(viewsets.ModelViewSet):
         if period.status == 'finalized':
             return Response({'error': 'Cannot adjust a finalized payslip'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Permissions: Payroll or HR
+        # Permissions: Payroll or Manager/Admin
         user = request.user
-        is_payroll_or_hr = (
+        is_payroll_or_manager = (
             user.is_superuser
-            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__iexact='Payroll').exists()
             or user.groups.filter(name__icontains='PAYROLL').exists()
-            or user.groups.filter(name__iexact='HR Manager').exists()
-            or user.groups.filter(name__icontains='HR').exists()
+            or user.groups.filter(name__iexact='Manager').exists()
+            or user.groups.filter(name__iexact='Admin').exists()
         )
-        if not is_payroll_or_hr:
-            return Response({'error': 'Only Payroll or HR can adjust payslips'}, status=status.HTTP_403_FORBIDDEN)
+        if not is_payroll_or_manager:
+            return Response({'error': 'Only Payroll or Manager can adjust payslips'}, status=status.HTTP_403_FORBIDDEN)
 
         try:
             amt = Decimal(str(request.data.get('amount', 0) or 0)).quantize(Decimal('0.01'))
@@ -517,13 +519,13 @@ class PayslipViewSet(viewsets.ModelViewSet):
         user = request.user
         is_payroll_officer = (
             user.is_superuser
-            or user.groups.filter(name__iexact='Payroll Officer').exists()
+            or user.groups.filter(name__iexact='Payroll').exists()
             or user.groups.filter(name__icontains='PAYROLL').exists()
-            or user.groups.filter(name__iexact='HR Manager').exists()
-            or user.groups.filter(name__icontains='HR').exists()
+            or user.groups.filter(name__iexact='Manager').exists()
+            or user.groups.filter(name__iexact='Admin').exists()
         )
         if not is_payroll_officer:
-            return Response({'error': 'Only Payroll or HR can set adjustments'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({'error': 'Only Payroll or Manager can set adjustments'}, status=status.HTTP_403_FORBIDDEN)
 
         try:
             adj_val = Decimal(str(request.data.get('adjustment', 0) or 0)).quantize(Decimal('0.01'))
@@ -630,7 +632,7 @@ class TaxCodeVersionViewSet(viewsets.ModelViewSet):
         return queryset
 
     def _notify_new_version(self, version, user):
-        """Notify Payroll/HR users when a new tax code version is created."""
+        """Notify Payroll/Manager users when a new tax code version is created."""
         from django.contrib.auth import get_user_model
 
         try:
@@ -638,7 +640,7 @@ class TaxCodeVersionViewSet(viewsets.ModelViewSet):
             sender_emp = getattr(user, 'employee', None)
 
             recipients = User.objects.filter(
-                groups__name__in=['Payroll', 'Payroll Officer', 'HR Manager']
+                groups__name__in=['Payroll', 'Manager', 'Admin']
             ).distinct()
 
             title = f"New Tax Code Version v{version.version}"

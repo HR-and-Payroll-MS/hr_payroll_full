@@ -3,7 +3,7 @@ export const POLICY_SCHEMAS = {
     { name: 'companyName', label: 'Company Name', type: 'text' },
     { name: 'version', label: 'Policy Version', type: 'text' },
     { name: 'effectiveDate', label: 'Effective Date', type: 'date' },
-    { name: 'adminContact', label: 'Admin Contact Email', type: 'text' }
+    { name: 'managerContact', label: 'Manager Contact Email', type: 'text' }
   ],
   ATTENDANCE: [
     { name: 'shiftStart', label: 'Shift Start Time', type: 'time' },

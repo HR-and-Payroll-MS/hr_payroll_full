@@ -32,19 +32,19 @@ const MOCK_NOTIFICATIONS = [
     createdAt: now(60),
     unread: true,
     senderRole: "SYSTEM",
-    receivers: ["SYSTEM_ADMIN"],
+    receivers: ["Manager"],
     meta: { severity: "info" },
   },
   {
     id: "n2",
     type: "TRAINING",
-    category: "hr",
+    category: "system",
     title: "Training session reminder",
     message: "Don't forget to join the upcoming training session on Friday.",
     createdAt: now(120),
     unread: true,
-    senderRole: "HR_MANAGER",
-    receivers: ["EMPLOYEE", "DEPARTMENT_MANAGER"],
+    senderRole: "Manager",
+    receivers: ["Employee", "Line Manager"],
     meta: { sessionId: "t-001" },
   },
   {
@@ -56,7 +56,7 @@ const MOCK_NOTIFICATIONS = [
     createdAt: now(240),
     unread: false,
     senderRole: "SYSTEM",
-    receivers: ["DEPARTMENT_MANAGER", "HR_MANAGER"],
+    receivers: ["Line Manager", "Manager"],
     meta: { employeeId: 1, date: "2025-11-23" },
   },
   {
@@ -67,8 +67,8 @@ const MOCK_NOTIFICATIONS = [
     message: "Leave request from Sarah Johnson requires your approval.",
     createdAt: now(20),
     unread: true,
-    senderRole: "EMPLOYEE",
-    receivers: ["DEPARTMENT_MANAGER"],
+    senderRole: "Employee",
+    receivers: ["Line Manager"],
     meta: { requestId: "leave-123", employeeId: 2 },
   },
 ];
@@ -107,19 +107,17 @@ function notificationIcon(category) {
 /* --------------- role utilities: who can send what ------------------------ */
 
 const ROLE_SEND_PERMISSIONS = {
-  SYSTEM_ADMIN: ["system", "hr", "attendance", "payroll"],
-  HR_MANAGER: ["hr", "attendance", "leave", "announcement"],
-  PAYROLL_OFFICER: ["payroll", "announcement"],
-  DEPARTMENT_MANAGER: ["leave", "attendance", "announcement"],
-  EMPLOYEE: [], // typically cannot send org-wide notifications
+  Manager: ["attendance", "leave", "announcement"],
+  Payroll: ["payroll", "announcement"],
+  "Line Manager": ["leave", "attendance", "announcement"],
+  Employee: [], // typically cannot send org-wide notifications
 };
 
 const ROLE_RECEIVE_TYPES = {
-  SYSTEM_ADMIN: ["system", "hr", "attendance", "payroll", "leave"],
-  HR_MANAGER: ["hr", "attendance", "leave", "system"],
-  PAYROLL_OFFICER: ["payroll", "system"],
-  DEPARTMENT_MANAGER: ["leave", "attendance", "hr", "system"],
-  EMPLOYEE: ["hr", "leave", "attendance", "system"],
+  Manager: ["attendance", "leave", "system"],
+  Payroll: ["payroll", "system"],
+  "Line Manager": ["leave", "attendance", "system"],
+  Employee: ["leave", "attendance", "system"],
 };
 
 /* ----------------------- useOutside hook for dropdown --------------------- */
@@ -155,10 +153,10 @@ function useNotificationStore(initial = []) {
       title: payload.title,
       message: payload.message,
       type: payload.type || "ANNOUNCEMENT",
-      category: payload.category || "hr",
+      category: payload.category || "system",
       createdAt: new Date().toISOString(),
       unread: true,
-      senderRole: payload.senderRole || "HR_MANAGER",
+      senderRole: payload.senderRole || "Manager",
       receivers: payload.receivers || ["ALL"],
       meta: payload.meta || {},
     };
@@ -189,7 +187,7 @@ function useNotificationStore(initial = []) {
 }
 /* ------------------------- NotificationBell ------------------------------ */
 
-export function NotificationBell({ role = "EMPLOYEE", onOpenCenter }) {
+export function NotificationBell({ role = "Employee", onOpenCenter }) {
   const store = useNotificationStore(MOCK_NOTIFICATIONS);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -319,7 +317,7 @@ function NotificationCard({ n, onView, onMarkRead, onDelete, canAction }) {
 
 /* ---------------------- Notification Center Page ------------------------ */
 
-export function NotificationCenterPage({ role = "EMPLOYEE" }) {
+export function NotificationCenterPage({ role = "Employee" }) {
   const store = useNotificationStore(MOCK_NOTIFICATIONS);
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
@@ -362,7 +360,7 @@ export function NotificationCenterPage({ role = "EMPLOYEE" }) {
           <select value={filter} onChange={(e) => setFilter(e.target.value)} className="border px-3 py-1 rounded">
             <option value="all">All</option>
             <option value="system">System</option>
-            <option value="hr">HR</option>
+            <option value="system">System</option>
             <option value="attendance">Attendance</option>
             <option value="leave">Leave</option>
             <option value="payroll">Payroll</option>
@@ -398,11 +396,11 @@ export function NotificationCenterPage({ role = "EMPLOYEE" }) {
 }
 
 /* ------------------------- Send Notification Page ----------------------- */
-export function SendNotificationPage({ role = "HR_MANAGER" }) {
+export function SendNotificationPage({ role = "Manager" }) {
   const store = useNotificationStore(MOCK_NOTIFICATIONS);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
-  const [category, setCategory] = useState("hr");
+  const [category, setCategory] = useState("system");
   const [receiversType, setReceiversType] = useState("ALL"); // ALL, DEPARTMENT, ROLE, USER
   const [targetValue, setTargetValue] = useState(""); // dept or role or user id
   const [priority, setPriority] = useState("normal");
@@ -412,14 +410,14 @@ export function SendNotificationPage({ role = "HR_MANAGER" }) {
   useEffect(() => {
     if (!canSend.includes(category) && category !== "announcement") {
       // if role cannot send this category, fallback
-      setCategory(canSend[0] || "hr");
+      setCategory(canSend[0] || "system");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
   function buildReceivers() {
     if (receiversType === "ALL") return ["ALL"];
-    if (receiversType === "ROLE") return [targetValue || "DEPARTMENT_MANAGER"];
+    if (receiversType === "ROLE") return [targetValue || "Line Manager"];
     if (receiversType === "DEPARTMENT") return [`DEPT:${targetValue}`];
     if (receiversType === "USER") return [Number(targetValue)];
     return ["ALL"];
@@ -452,7 +450,7 @@ export function SendNotificationPage({ role = "HR_MANAGER" }) {
           <select value={category} onChange={(e) => setCategory(e.target.value)} className="border px-3 py-1 rounded w-full">
             {/* show only categories allowed for this role */}
             {canSend.includes("system") && <option value="system">System</option>}
-            {canSend.includes("hr") && <option value="hr">HR</option>}
+            {canSend.includes("system") && <option value="system">System</option>}
             {canSend.includes("attendance") && <option value="attendance">Attendance</option>}
             {canSend.includes("leave") && <option value="leave">Leave</option>}
             {canSend.includes("payroll") && <option value="payroll">Payroll</option>}
@@ -482,10 +480,10 @@ export function SendNotificationPage({ role = "HR_MANAGER" }) {
 
             {receiversType === "ROLE" && (
               <select value={targetValue} onChange={(e) => setTargetValue(e.target.value)} className="border px-3 py-1 rounded">
-                <option value="DEPARTMENT_MANAGER">Department Managers</option>
-                <option value="HR_MANAGER">HR Managers</option>
-                <option value="PAYROLL_OFFICER">Payroll Officers</option>
-                <option value="EMPLOYEE">All Employees</option>
+                <option value="Line Manager">Line Managers</option>
+                <option value="Manager">Managers</option>
+                <option value="Payroll">Payroll</option>
+                <option value="Employee">All Employees</option>
               </select>
             )}
 

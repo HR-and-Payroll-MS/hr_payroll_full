@@ -39,9 +39,9 @@ function Policy() {
   const userRole = auth?.user?.role || 'Employee';
   const userGroups = auth?.user?.groups || [];
   
-  // A user is HR if they have any of these roles OR if their primary role is one of them.
-  const hrRoles = ['Manager', 'Admin', 'Payroll', 'HR Manager'];
-  const isHRManager = hrRoles.includes(userRole) || userGroups.some(g => hrRoles.includes(g));
+  // A user is management if they have any of these roles OR if their primary role is one of them.
+  const managementRoles = ['Manager', 'Payroll'];
+  const isManagement = managementRoles.includes(userRole) || userGroups.some(g => managementRoles.includes(g));
 
   const steps = [
     "Company Info",
@@ -236,8 +236,8 @@ function Policy() {
   if (loading) return <div className="flex justify-center items-center h-screen"><ThreeDots /></div>;
   if (error) return <div className="p-4 text-center text-red-500 bg-red-50 rounded-lg">{error}</div>;
 
-  // RENDER POLICY BOOK FOR NON-HR MANAGERS
-  if (!isHRManager) {
+  // RENDER POLICY BOOK FOR NON-MANAGERS
+  if (!isManagement) {
     return (
       <PolicyBook 
         policyData={policyData} 
@@ -250,7 +250,7 @@ function Policy() {
     );
   }
 
-  // RENDER EDITOR FOR HR MANAGERS
+  // RENDER EDITOR FOR MANAGERS
   return (
     <div className="flex flex-col gap-4 w-full p-2 h-full justify-start dark:bg-slate-900 bg-gray-50 overflow-hidden transition-colors">
       <div className="flex justify-evenly shrink-0"> 

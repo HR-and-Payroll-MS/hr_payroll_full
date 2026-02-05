@@ -2,8 +2,8 @@ from rest_framework import permissions
 
 class IsHRManager(permissions.BasePermission):
     """
-    Allows access only to HR Managers, Admins, or Payroll officers.
-    In this system, the primary HR role group is often named 'Manager'.
+    Allows access only to Managers, Admins, or Payroll users.
+    In this system, the primary HR role group is 'Manager'.
     """
     def has_permission(self, request, view):
         try:
@@ -15,11 +15,11 @@ class IsHRManager(permissions.BasePermission):
                 
             user_groups = [g.name.upper() for g in request.user.groups.all()]
             # Primary HR Roles
-            hr_role_groups = ['HR', 'HR MANAGER', 'ADMIN', 'HR-MANAGER', 'PAYROLL', 'MANAGER', 'HUMAN RESOURCES']
+            hr_role_groups = ['ADMIN', 'PAYROLL', 'MANAGER']
             is_hr = any(role in user_groups for role in hr_role_groups)
             
             # If they are in Line Manager group, they are NOT HR unless explicitly in HR group
-            if 'LINE MANAGER' in user_groups and not any(r in user_groups for r in ['HR', 'HR MANAGER', 'ADMIN', 'MANAGER']):
+            if 'LINE MANAGER' in user_groups and not any(r in user_groups for r in ['ADMIN', 'MANAGER', 'PAYROLL']):
                 return False
                 
             # Fallback to job title ONLY for clear HR roles
@@ -49,7 +49,7 @@ class IsHRManagerOrReadOnly(IsHRManager):
 
 class IsPayrollOfficer(permissions.BasePermission):
     """
-    Allows access only to Payroll Officers, HR Managers, and Admins.
+    Allows access only to Payroll, Managers, and Admins.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -59,6 +59,6 @@ class IsPayrollOfficer(permissions.BasePermission):
             return True
             
         user_groups = [g.name.upper() for g in request.user.groups.all()]
-        payroll_roles = ['PAYROLL', 'PAYROLL OFFICER', 'PAYROLL-OFFICER', 'HR', 'HR MANAGER', 'ADMIN']
+        payroll_roles = ['PAYROLL', 'MANAGER', 'ADMIN']
         return any(role in user_groups for role in payroll_roles)
 

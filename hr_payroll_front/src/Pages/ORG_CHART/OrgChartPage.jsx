@@ -9,7 +9,7 @@ const OrgChartPage = () => {
   const [chartData, setChartData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const role = getLocalData('role') || 'HR'; 
+  const role = getLocalData('role') || 'Manager'; 
 
   const initialMockData = {
     nodes: [

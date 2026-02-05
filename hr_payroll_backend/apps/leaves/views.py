@@ -33,7 +33,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             return False
         job_title = getattr(employee, 'position', '') or ''
         # Check by title
-        if 'MANAGER' in job_title.upper() or 'HR' in job_title.upper():
+        if 'MANAGER' in job_title.upper():
             return True
         # Check by relationship
         if employee.direct_reports.exists():
@@ -65,15 +65,15 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
             # NOTE: Users CAN see their own requests in the list
             # They just CANNOT approve/deny their own (enforced in approve/deny actions)
             
-            if approver_role == 'HR':
-                # HR sees:
-                # 1. Requests with status 'manager_approved' (ready for HR approval)
-                # 2. Requests from OTHER managers (skip manager step, go directly to HR)
+            if approver_role == 'Manager':
+                # Manager sees:
+                # 1. Requests with status 'manager_approved' (ready for final approval)
+                # 2. Requests from OTHER managers (skip line manager step, go directly to Manager)
                 # 3. Approved/Denied history
                 
                 if not status_param:
-                    # Default view for HR: exclude 'pending' UNLESS requester is a manager
-                    # Manager requests skip step 1 and go directly to HR
+                    # Default view for Manager: exclude 'pending' UNLESS requester is a manager
+                    # Manager requests skip step 1 and go directly to Manager
                     manager_employee_ids = self._get_all_manager_ids()
                     
                     queryset = queryset.filter(
@@ -81,8 +81,8 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                         Q(status='pending', employee_id__in=manager_employee_ids)
                     )
             
-            elif approver_role == 'Manager':
-                # Manager sees:
+            elif approver_role == 'Line Manager':
+                # Line Manager sees:
                 # 1. Requests from their direct reports
                 # 2. Requests from employees in departments they manage
                 # 3. Their OWN requests (for viewing, not approving)
@@ -108,7 +108,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         
         # By title
         managers_by_title = Employee.objects.filter(
-            Q(position__icontains='manager') | Q(position__icontains='HR')
+            Q(position__icontains='manager')
         ).values_list('id', flat=True)
         manager_ids.update(managers_by_title)
         
@@ -128,17 +128,18 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     
     def _get_approver_role(self, user):
         """Determine the role of the current user for approval purposes."""
-        # 1. Staff/Superusers can act as HR (God mode for testing/admin)
+        # 1. Staff/Superusers can act as Manager (God mode for testing/admin)
         if user.is_authenticated and (user.is_superuser or user.is_staff):
             print(f"DEBUG: Role detection - user {user.username} is staff/superuser")
-            return 'HR'
+            return 'Manager'
 
-        # 2. Check username/email for common HR keywords (fallback for unlinked accounts)
-        u_name = user.username.upper()
-        u_email = user.email.upper()
-        if 'HR' in u_name or 'HUMAN' in u_name or 'HR' in u_email or 'HUMAN' in u_email:
-            print(f"DEBUG: Role detection - user {user.username} identified as HR via account info")
-            return 'HR'
+        # 2. Check group membership
+        if user.groups.filter(name__in=['Admin', 'Manager']).exists():
+            print(f"DEBUG: Role detection - user {user.username} identified as Manager via group")
+            return 'Manager'
+        if user.groups.filter(name='Line Manager').exists():
+            print(f"DEBUG: Role detection - user {user.username} identified as Line Manager via group")
+            return 'Line Manager'
 
         if not hasattr(user, 'employee') or not user.employee:
             print(f"DEBUG: Role detection - user {user.username} has no employee profile")
@@ -148,24 +149,19 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         job_title = getattr(employee, 'position', '') or ''
         print(f"DEBUG: Role detection - user {user.username}, position: {job_title}")
         
-        # 3. Check if HR Manager
-        if job_title and ('HR' in job_title.upper() or 'HUMAN RESOURCES' in job_title.upper()):
-            print(f"DEBUG: Role detection - user {user.username} identified as HR")
-            return 'HR'
-        
-        # 4. Check if Department Manager
+        # 3. Check if Department/Line Manager
         if job_title and ('MANAGER' in job_title.upper() or 'DEPARTMENT' in job_title.upper()):
-            print(f"DEBUG: Role detection - user {user.username} identified as Manager")
-            return 'Manager'
+            print(f"DEBUG: Role detection - user {user.username} identified as Line Manager")
+            return 'Line Manager'
             
         if employee.direct_reports.exists():
-            return 'Manager'
+            return 'Line Manager'
         
         if employee.managed_departments.exists():
-            return 'Manager'
+            return 'Line Manager'
         
         if employee.department and employee.department.manager == employee:
-            return 'Manager'
+            return 'Line Manager'
         
         return None
 
@@ -209,8 +205,8 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                     decided_at=timezone.now()
                 )
                 
-                # Notify HR directly
-                self._notify_hr_about_pending(leave_request)
+                # Notify Manager directly
+                self._notify_manager_about_pending(leave_request)
         else:
             serializer.save()
     
@@ -238,7 +234,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         
         if current_status == 'pending':
             # First approval (Manager step)
-            if approver_role == 'Manager':
+            if approver_role == 'Line Manager':
                 leave_request.status = 'manager_approved'
                 leave_request.save()
                 
@@ -253,27 +249,27 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                     decided_at=timezone.now()
                 )
                 
-                self._notify_hr_about_pending(leave_request)
+                self._notify_manager_about_pending(leave_request)
                 
                 return Response({
                     'status': 'manager_approved', 
-                    'message': 'Approved by manager. Awaiting HR approval.'
+                    'message': 'Approved by line manager. Awaiting manager approval.'
                 })
-            elif approver_role == 'HR':
+            elif approver_role == 'Manager':
                 return Response(
-                    {'error': 'Pending requests must be approved by the Department Manager first.'},
+                    {'error': 'Pending requests must be approved by the Line Manager first.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
             else:
                 return Response(
-                    {'error': f'Only managers can approve pending requests. Your role: {approver_role}'},
+                    {'error': f'Only line managers can approve pending requests. Your role: {approver_role}'},
                     status=status.HTTP_403_FORBIDDEN
                 )
         
         elif current_status == 'manager_approved':
-            # Second approval (HR step)
-            print(f"DEBUG: Checking HR role for {request.user.username}. Role detected: {approver_role}")
-            if approver_role == 'HR':
+            # Second approval (Manager step)
+            print(f"DEBUG: Checking Manager role for {request.user.username}. Role detected: {approver_role}")
+            if approver_role == 'Manager':
                 leave_request.status = 'approved'
                 leave_request.save()
                 
@@ -296,7 +292,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                 })
             else:
                 return Response(
-                    {'error': f'Only HR can give final approval. Your role: {approver_role}'},
+                    {'error': f'Only Managers can give final approval. Your role: {approver_role}'},
                     status=status.HTTP_403_FORBIDDEN
                 )
         
@@ -341,26 +337,24 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         
         return Response({'status': 'denied'})
     
-    def _notify_hr_about_pending(self, leave_request):
-        """Send notification to HR about manager-approved leave request."""
+    def _notify_manager_about_pending(self, leave_request):
+        """Send notification to Manager about line-manager-approved leave request."""
         try:
             from apps.employees.models import Employee
-            
-            hr_employees = Employee.objects.filter(
-                Q(position__icontains='HR') | Q(position__icontains='Human Resources')
-            )
-            
-            for hr in hr_employees:
+
+            manager_employees = Employee.objects.filter(user_account__groups__name='Manager')
+
+            for manager in manager_employees:
                 Notification.objects.create(
-                    recipient=hr,
+                    recipient=manager,
                     sender=leave_request.employee,
-                    title="Leave Request Pending HR Approval",
+                    title="Leave Request Pending Manager Approval",
                     message=f"{leave_request.employee.fullname}'s {leave_request.leave_type} leave request awaits your approval.",
                     notification_type='request',
                     link=f"/leaves/{leave_request.id}"
                 )
         except Exception as e:
-            print(f"Error notifying HR: {e}")
+            print(f"Error notifying Manager: {e}")
     
     def _notify_employee_final_decision(self, leave_request, decision):
         """Send notification to employee about final leave decision."""

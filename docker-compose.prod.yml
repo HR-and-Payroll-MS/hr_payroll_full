@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - ./.envs/.production/.postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hr_payroll} -d ${POSTGRES_DB:-hr_payroll}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./hr_payroll_backend
+      args:
+        REQUIREMENTS_FILE: requirements/production.txt
+    env_file:
+      - ./.envs/.production/.django
+      - ./.envs/.production/.postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+    ports:
+      - "8000:8000"
+    networks:
+      - app_net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./hr_payroll_front
+      target: prod
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - app_net
+    restart: unless-stopped
+
+volumes:
+  db_data:
+
+networks:
+  app_net:
+    driver: bridge

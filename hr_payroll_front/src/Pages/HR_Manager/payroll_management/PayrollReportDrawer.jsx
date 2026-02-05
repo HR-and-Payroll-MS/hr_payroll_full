@@ -43,7 +43,7 @@ function PayrollReportDrawer({ data, onActionComplete }) {
     try {
       await axiosPrivate.post(`/payroll/periods/${data.id}/rollback/`, { reason });
       setLocalStatus("rolled_back");
-      setSuccess("Payroll rolled back to Payroll Officer.");
+      setSuccess("Payroll rolled back to Payroll.");
       if (onActionComplete) onActionComplete({ id: data.id, status: "rolled_back" });
     } catch (e) {
       setError(e?.response?.data?.error || "Failed to rollback payroll.");
@@ -68,7 +68,7 @@ function PayrollReportDrawer({ data, onActionComplete }) {
         </p>
       </div>
 
-      {/* Actions for HR Manager */}
+      {/* Actions for Manager */}
       {canAct && (
         <div className="mt-4 space-y-3">
           <div className="flex flex-col gap-2">

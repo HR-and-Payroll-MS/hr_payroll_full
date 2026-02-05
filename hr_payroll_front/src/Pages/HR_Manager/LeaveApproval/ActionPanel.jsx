@@ -28,7 +28,7 @@ export default function ActionPanel({
       {/* Comment Area */}
       <div className="flex flex-col gap-1.5 flex-1">
         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">
-          Admin Comment
+          Manager Comment
         </label>
         <textarea
           className="w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-600 rounded p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none flex-1"

@@ -10,10 +10,10 @@ import { useNotifications } from '../../Context/NotificationProvider';
 import Icon from '../../Components/Icon';
 import { getLocalData } from '../../Hooks/useLocalStorage';
 
-export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
+export default function NotificationCenterPage({ role = 'Employee' }) {
   const navigate = useNavigate();
   const auth = useAuth();
-  const currentRole = getLocalData("role") || auth?.user?.role || role || 'EMPLOYEE';
+  const currentRole = getLocalData("role") || auth?.user?.role || role || 'Employee';
   console.log('NotificationCenterPage currentRole:', currentRole);
   const {
     items,
@@ -35,8 +35,8 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
     if (!n.receivers) return true;
     return (
       n.receivers.includes('ALL') ||
-      n.receivers.includes(role) ||
-      ROLE_RECEIVE_TYPES[role]?.includes(n.category)
+      n.receivers.includes(currentRole) ||
+      ROLE_RECEIVE_TYPES[currentRole]?.includes(n.category)
     );
   };
 
@@ -64,8 +64,6 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       'line manager': 'department_manager',
       'department manager': 'department_manager',
       manager: 'hr_dashboard',
-      admin: 'admin_dashboard',
-      hr: 'hr_dashboard',
     };
     const getRoleBase = (r) => {
       const rl = String(r || '').toLowerCase();
@@ -75,9 +73,8 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       if (rl.includes('payroll')) return 'Payroll';
       if (rl.includes('department') || rl.includes('line manager') || rl.includes('department_manager'))
         return 'department_manager';
-      if (rl.includes('hr') || rl.includes('hr_manager') || rl === 'manager' || rl === 'hrmanager')
+      if (rl === 'manager' || rl.includes('manager'))
         return 'hr_dashboard';
-      if (rl.includes('admin')) return 'admin_dashboard';
       if (rl.includes('employee')) return 'Employee';
 
       const key = Object.keys(roleBaseMap).find((k) => rl === k);
@@ -136,7 +133,7 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       const roleNorm = (currentRole || '').toLowerCase();
       if (roleNorm.includes('employee')) return '/Employee/Request';
       if (roleNorm.includes('line manager')) return '/department_manager/Approve_Reject';
-      if (roleNorm.includes('manager') || roleNorm.includes('hr')) return '/hr_dashboard/Approve_Reject';
+      if (roleNorm.includes('manager')) return '/hr_dashboard/Approve_Reject';
       return '/Employee/Request';
     }
 

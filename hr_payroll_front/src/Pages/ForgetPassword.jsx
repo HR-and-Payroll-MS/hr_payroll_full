@@ -11,9 +11,9 @@ function ForgetPassword() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   useEffect(() => {
-  if (auth?.user?.role === 'hr') navigate('/manager_dashboard');
-  else if (auth?.user?.role === 'Manager') navigate('/hr_dashboard');
+  if (auth?.user?.role === 'Manager') navigate('/hr_dashboard');
   else if (auth?.user?.role === 'Payroll') navigate('/payroll');
+  else if (auth?.user?.role === 'Line Manager') navigate('/manager_dashboard');
   else {<>unknown Actor logged in</>}
 }, [auth, navigate]);
 

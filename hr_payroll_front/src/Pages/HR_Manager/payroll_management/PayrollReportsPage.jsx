@@ -272,7 +272,7 @@ function PayrollReportsPage() {
           }
         />
 
-        {/* ACTION BUTTONS FOR HR MANAGER */}
+        {/* ACTION BUTTONS FOR MANAGER */}
         {(periodStatus === 'pending_approval' ||
           periodStatus === 'approved') && (
           <div className="flex gap-2">
@@ -489,7 +489,7 @@ function PayrollReportsPage() {
               <RotateCcw size={20} /> Rollback Payroll
             </h3>
             <p className="text-sm text-slate-600 mb-4">
-              Send back to Payroll Officer for corrections.
+              Send back to Payroll for corrections.
             </p>
             <textarea
               value={rollbackReason}

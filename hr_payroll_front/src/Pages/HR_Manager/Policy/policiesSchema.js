@@ -25,7 +25,7 @@ export const initialPolicies = {
     },
     attendanceCorrection: {
       documentationRequired: { __type: "dropdown", options: ["Yes", "No"], value: "Yes" },
-      approvalFlow: ["manager", "hr"],
+      approvalFlow: ["line_manager", "manager"],
     },
   },
 
@@ -115,7 +115,7 @@ export const initialPolicies = {
       noCallNoShow: "Immediate suspension pending investigation",
     },
     escalation: {
-      steps: ["manager", "hr", "director"],
+      steps: ["line_manager", "manager", "director"],
     },
   },
 

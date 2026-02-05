@@ -32,7 +32,7 @@ INITIAL_POLICIES = {
         },
         "attendanceCorrection": {
             "documentationRequired": {"__type": "dropdown", "options": ["Yes", "No"], "value": "Yes"},
-            "approvalFlow": ["manager", "hr"],
+            "approvalFlow": ["line_manager", "manager"],
         },
     },
     "leavePolicy": {
@@ -117,7 +117,7 @@ INITIAL_POLICIES = {
             "noCallNoShow": "Immediate suspension pending investigation",
         },
         "escalation": {
-            "steps": ["manager", "hr", "director"],
+            "steps": ["line_manager", "manager", "director"],
         },
     },
     "jobStructurePolicy": {

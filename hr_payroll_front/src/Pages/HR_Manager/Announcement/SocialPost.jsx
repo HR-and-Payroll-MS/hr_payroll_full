@@ -11,7 +11,7 @@ export default function SocialPost({ announcement, isDetailView = false, onEdit 
   const displayDate = created_at || createdAt;
   const [expanded, setExpanded] = useState(isDetailView);
 
-  const isHR = auth?.user?.role === 'Manager' || auth?.user?.role === 'Admin';
+  const isHR = auth?.user?.role === 'Manager';
   
   useEffect(() => {
     if (id) {

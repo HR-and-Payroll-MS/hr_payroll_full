@@ -149,7 +149,7 @@ function App() {
         <Route path="/unauthorized" element={<UnAuthorized />} />
         <Route path="/ORG" element={<OrgChartPage />} />
         <Route path="/access-denied" element={<AccessDenied />} />
-        {/* ------------------------- Payroll officer ---------------------- */}
+        {/* ------------------------- Payroll ---------------------- */}
         <Route element={<Routes allowedRoles={['Payroll']} />}>
           <Route path="Payroll" element={<MainLayout />}>
             {sharedSettingsRoutes}

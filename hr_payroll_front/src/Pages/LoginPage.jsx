@@ -149,7 +149,7 @@ useEffect(() => {
           <div className="mt-2 text-center">
              <p className="text-[11px] text-gray-400 font-medium">
                 Trouble logging in? <br />
-                <span className="text-blue-600 cursor-pointer hover:underline">Contact System Administrator</span>
+                <span className="text-blue-600 cursor-pointer hover:underline">Contact Manager</span>
              </p>
           </div>
         </div> 

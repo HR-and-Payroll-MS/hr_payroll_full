@@ -25,8 +25,8 @@ export default function LeaveApprovalPage() {
   ]
     .filter(Boolean)
     .map((r) => String(r).toLowerCase());
-  const isHR = roleTokens.some(
-    (r) => r.includes('hr') || r.includes('payroll') || r.includes('admin')
+  const isManagement = roleTokens.some(
+    (r) => r.includes('manager') || r.includes('payroll')
   );
   const isManager = roleTokens.some((r) => r.includes('manager'));
   const [requests, setRequests] = useState([]);
@@ -133,7 +133,7 @@ export default function LeaveApprovalPage() {
           r.status.toLowerCase().includes(filter.q.toLowerCase()) ||
           r.type.toLowerCase().includes(filter.q.toLowerCase());
         if (!matchesQ) return false;
-        // For 'pending' filter, also show 'manager_approved' (both need HR action)
+        // For 'pending' filter, also show 'manager_approved' (both need Manager action)
         if (filter.status === 'pending') {
           return r.status === 'pending' || r.status === 'manager_approved';
         }

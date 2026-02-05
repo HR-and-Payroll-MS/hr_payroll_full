@@ -86,7 +86,7 @@ export default function MyDepartment() {
                     
                     {department.manager_name ? (
                         <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-100 dark:border-slate-600">
-                            <p className="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Department Manager</p>
+                            <p className="text-xs text-gray-400 uppercase tracking-wider font-bold mb-2">Line Manager</p>
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center font-bold text-slate-500">
                                     {department.manager_name.charAt(0)}

@@ -218,7 +218,7 @@ export default function WorkSchedule() {
         s.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const isHRManager = ['Manager', 'Admin', 'Payroll', 'HR Manager'].includes(userRole);
+    const isManagement = ['Manager', 'Payroll'].includes(userRole);
 
     return (
         <div className="flex relative flex-col w-full p-8 bg-white dark:bg-slate-800 dark:text-slate-100 min-h-screen">
@@ -238,7 +238,7 @@ export default function WorkSchedule() {
                     </div>
                 </div>
 
-                {isHRManager && (
+                {isManagement && (
                     editingId ? (
                         <div className="flex gap-2">
                              <button onClick={handleCancel} className="flex bg-gray-200 text-gray-700 dark:bg-slate-700 dark:text-slate-200 items-center px-5 py-3 rounded-md font-semibold text-xs transition-transform active:scale-95">
@@ -263,7 +263,7 @@ export default function WorkSchedule() {
                     <div className="flex flex-col items-center justify-center py-20 bg-gray-50 dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-gray-200 dark:border-slate-800">
                         <img src="/pic/empty-calendar.png" className="w-24 opacity-20 dark:invert mb-4" alt="" />
                         <h3 className="text-lg font-bold text-gray-400">No Work Schedule Assigned</h3>
-                        <p className="text-sm text-gray-400">Please contact HR if you believe this is an error.</p>
+                        <p className="text-sm text-gray-400">Please contact your Manager if you believe this is an error.</p>
                     </div>
                 ) : (
                     filteredSchedules.map((sched) => {
@@ -446,7 +446,7 @@ export default function WorkSchedule() {
                                             </div>
                                         </div>
 
-                                        {isHRManager && !isEditing && (
+                                        {isManagement && !isEditing && (
                                             <div className="flex gap-3 mt-8 pt-6 border-t border-slate-50 dark:border-slate-700">
                                                 <button 
                                                     onClick={(e) => handleEditClick(e, sched)}

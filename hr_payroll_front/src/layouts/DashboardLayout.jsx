@@ -37,7 +37,7 @@ function DashboardLayout() {
         return "Track your attendance, leaves, and payroll information";
       case 'Payroll':
         return "Manage payroll processing and generate reports";
-      case 'Department_Manager':
+      case 'Line_Manager':
         return "Monitor your team's performance and attendance";
       default:
         return "Welcome to the HR Dashboard";
@@ -66,7 +66,7 @@ function DashboardLayout() {
           line: { title: 'Monthly Disbursements', bottomLegend: 'Month', leftLegend: 'Amount ($)' },
           pie: { title: 'Payroll Status' }
         };
-      case 'Department_Manager':
+      case 'Line_Manager':
         return {
           bar: { title: 'Team Daily Attendance', bottomLegend: 'Day', leftLegend: 'Employees', indexBy: 'day' },
           line: { title: 'Team Monthly Hours', bottomLegend: 'Month', leftLegend: 'Hours' },

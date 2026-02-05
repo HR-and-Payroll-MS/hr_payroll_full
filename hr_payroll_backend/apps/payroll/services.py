@@ -928,7 +928,7 @@ class PayrollCalculationService:
 
 
 def submit_payroll(period: PayrollPeriod, submitted_by: Employee, notes: str = ''):
-    """Submit payroll for HR approval."""
+    """Submit payroll for Manager approval."""
     if period.status not in ['generated', 'rolled_back']:
         raise ValueError(f"Cannot submit payroll in '{period.status}' status")
     
@@ -952,7 +952,7 @@ def submit_payroll(period: PayrollPeriod, submitted_by: Employee, notes: str = '
 
 
 def approve_payroll(period: PayrollPeriod, approved_by: Employee, notes: str = ''):
-    """Approve payroll (HR Manager action)."""
+    """Approve payroll (Manager action)."""
     if period.status != 'pending_approval':
         raise ValueError(f"Cannot approve payroll in '{period.status}' status")
     
@@ -976,7 +976,7 @@ def approve_payroll(period: PayrollPeriod, approved_by: Employee, notes: str = '
 
 
 def rollback_payroll(period: PayrollPeriod, rolled_back_by: Employee, reason: str):
-    """Rollback payroll to draft (HR Manager action)."""
+    """Rollback payroll to draft (Manager action)."""
     if period.status not in ['pending_approval', 'approved']:
         raise ValueError(f"Cannot rollback payroll in '{period.status}' status")
     

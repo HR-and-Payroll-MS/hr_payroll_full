@@ -19,9 +19,9 @@ function OTPVerification() {
 
   // Redirect if already logged in (matching your logic)
   useEffect(() => {
-    if (auth?.user?.role === 'hr') navigate('/manager_dashboard');
-    else if (auth?.user?.role === 'Manager') navigate('/hr_dashboard');
+    if (auth?.user?.role === 'Manager') navigate('/hr_dashboard');
     else if (auth?.user?.role === 'Payroll') navigate('/payroll');
+    else if (auth?.user?.role === 'Line Manager') navigate('/manager_dashboard');
   }, [auth, navigate]);
 
   const handleChange = (index, value) => {

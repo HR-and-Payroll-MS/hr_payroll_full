@@ -51,7 +51,7 @@ const PolicySidebar = ({ activeTab, setActiveTab }) => {
           <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-xs font-bold text-white">AD</div>
           <div className="overflow-hidden">
             <p className="text-white text-xs font-bold truncate">System Architect</p>
-            <p className="text-slate-500 text-[10px] truncate">Admin Privileges</p>
+            <p className="text-slate-500 text-[10px] truncate">Manager Privileges</p>
           </div>
         </div>
       </div>

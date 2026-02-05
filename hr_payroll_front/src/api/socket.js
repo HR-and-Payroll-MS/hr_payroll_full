@@ -15,7 +15,7 @@ export function connectSocket(userId, path = currentPath) {
   const token = getAccessToken();
   if (!token) return null;
 
-  socket = io("http://localhost:8001", {
+  socket = io("http://localhost:8000", {
     transports: ["polling"],
     query: { userId }, // Pass userId for backend session
     reconnection: true,

@@ -113,7 +113,7 @@ export default function ClockIn() {
   return (
     <div className="px-4 py-2 dark:bg-slate-800 h-full gap-4 flex flex-col bg-slate-50 mx-auto">
       <Header
-        Title={"Attendance — Admin Panel"}
+        Title={"Attendance — Manager Panel"}
         subTitle={"Clock in/out for employees (office network only)"}
       />
 
@@ -270,7 +270,7 @@ export default function ClockIn() {
 
 //   return (
 //     <div className="px-4 py-2  h-full gap-4 flex flex-col bg-slate-50  mx-auto">
-//       <Header Title={"Attendance — Admin Panel"} subTitle={"Clock in/out for employees (office network only)"}/>
+//       <Header Title={"Attendance — Manager Panel"} subTitle={"Clock in/out for employees (office network only)"}/>
 //     <div className="flex gap-4 flex-1">
 //       <section className="flex flex-1 bg-white flex-col rounded shadow  items-center justify-center gap-4">
 //         <ActionButton

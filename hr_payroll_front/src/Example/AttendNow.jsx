@@ -31,16 +31,16 @@ function Sidebar() {
       <nav className="flex flex-col gap-2">
         <Link className="px-3 py-2 rounded hover:bg-slate-100" to="/">Home</Link>
 
-        {/* Only show admin menu item if we know the user is local. If still checking, show a placeholder */}
+        {/* Only show manager menu item if we know the user is local. If still checking, show a placeholder */}
         {checking ? (
           <div className="px-3 py-2 rounded bg-yellow-50 text-sm text-yellow-800">Checking network...</div>
         ) : isLocal ? (
-          <Link className="px-3 py-2 rounded hover:bg-slate-100 font-medium text-indigo-700" to="/admin/attendance">
-            Attendance Admin
+          <Link className="px-3 py-2 rounded hover:bg-slate-100 font-medium text-indigo-700" to="/hr_dashboard/attendance">
+            Attendance Manager
           </Link>
         ) : (
           // If not local, don't render the link at all; optionally render a tooltip/disabled item
-          <div className="px-3 py-2 rounded text-sm text-gray-400">Attendance Admin (local only)</div>
+          <div className="px-3 py-2 rounded text-sm text-gray-400">Attendance Manager (local only)</div>
         )}
 
         <Link className="px-3 py-2 rounded hover:bg-slate-100" to="/profile">Profile</Link>
@@ -159,7 +159,7 @@ function AttendancePage() {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold">Attendance — Admin Panel</h1>
+        <h1 className="text-2xl font-bold">Attendance — Manager Panel</h1>
         <p className="text-sm text-gray-500">Clock in/out for employees (office network only)</p>
       </header>
 
@@ -250,7 +250,7 @@ function Home() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold">Welcome to HR Portal</h1>
-      <p className="text-gray-600">Use the sidebar to navigate. Attendance Admin appears only on the office network.</p>
+      <p className="text-gray-600">Use the sidebar to navigate. Attendance Manager appears only on the office network.</p>
     </div>
   );
 }
@@ -267,7 +267,7 @@ function Home() {
 //               <Route path="/" element={<Home />} />
 //               <Route path="/profile" element={<div className="p-8">Profile page (example)</div>} />
 //               <Route
-//                 path="/admin/attendance"
+//                 path="/hr_dashboard/attendance"
 //                 element={
 //                   <ProtectedRoute>
 //                     <AttendancePage />

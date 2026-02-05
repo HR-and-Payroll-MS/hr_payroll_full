@@ -47,10 +47,13 @@ function GeneratePayroll() {
   const userRole = useMemo(() => {
     const groups = auth?.user?.groups || [];
     const role = auth?.user?.role || '';
-    if (groups.includes('HR Manager') || role.toLowerCase().includes('hr')) {
-      return 'hr_manager';
+    if (
+      groups.includes('Manager') ||
+      role.toLowerCase().includes('manager')
+    ) {
+      return 'manager';
     }
-    return 'payroll_officer';
+    return 'payroll';
   }, [auth]);
 
   // State
@@ -443,7 +446,7 @@ function GeneratePayroll() {
     }
   };
 
-  // Approve (HR Manager)
+  // Approve (Manager)
   const handleApprove = async () => {
     setSyncing(true);
     setError(null);
@@ -464,7 +467,7 @@ function GeneratePayroll() {
     }
   };
 
-  // Finalize (HR Manager)
+  // Finalize (Manager)
   const handleFinalize = async () => {
     setSyncing(true);
     setError(null);
@@ -482,7 +485,7 @@ function GeneratePayroll() {
     }
   };
 
-  // Rollback (HR Manager)
+  // Rollback (Manager)
   const handleRollback = async () => {
     if (!rollbackReason.trim()) {
       setError('Please provide a reason for rollback');
@@ -686,8 +689,8 @@ function GeneratePayroll() {
             </div>
           )}
 
-          {/* PAYROLL OFFICER BUTTONS */}
-          {userRole === 'payroll_officer' && (
+          {/* PAYROLL BUTTONS */}
+          {userRole === 'payroll' && (
             <>
               {(status === 'draft' ||
                 status === 'rolled_back' ||
@@ -727,7 +730,7 @@ function GeneratePayroll() {
                       ) : (
                         <Send size={14} />
                       )}
-                      Submit to HR
+                      Submit to Manager
                     </button>
                   )}
                 </>
@@ -735,8 +738,8 @@ function GeneratePayroll() {
             </>
           )}
 
-          {/* HR MANAGER BUTTONS */}
-          {userRole === 'hr_manager' && status === 'pending_approval' && (
+          {/* MANAGER BUTTONS */}
+          {userRole === 'manager' && status === 'pending_approval' && (
             <>
               <button
                 onClick={() => setShowRollbackModal(true)}
@@ -759,7 +762,7 @@ function GeneratePayroll() {
             </>
           )}
 
-          {userRole === 'hr_manager' && status === 'approved' && (
+          {userRole === 'manager' && status === 'approved' && (
             <button
               onClick={handleFinalize}
               disabled={syncing}
@@ -867,7 +870,7 @@ function GeneratePayroll() {
               {taxVersionInactive && (
                 <div className="mt-3 flex items-center gap-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded">
                   <AlertCircle size={14} /> Taxes are zero for this period.
-                  Ensure an active tax code version is configured in HR Manager
+                  Ensure an active tax code version is configured in Manager
                   → Tax Codes.
                 </div>
               )}
@@ -906,7 +909,7 @@ function GeneratePayroll() {
             <div className="flex-1">
               <span className="text-slate-400 italic">
                 {status === 'pending_approval'
-                  ? 'Pending HR Approval (Read-Only)'
+                  ? 'Pending Manager Approval (Read-Only)'
                   : status === 'approved'
                   ? 'Approved - Ready to Finalize'
                   : status === 'finalized'
@@ -980,7 +983,7 @@ function GeneratePayroll() {
               <RotateCcw size={20} /> Rollback Payroll
             </h3>
             <p className="text-sm text-slate-500 mb-4">
-              This will send the payroll back to the Payroll Officer for
+              This will send the payroll back to Payroll for
               corrections. Please provide a reason.
             </p>
             <textarea

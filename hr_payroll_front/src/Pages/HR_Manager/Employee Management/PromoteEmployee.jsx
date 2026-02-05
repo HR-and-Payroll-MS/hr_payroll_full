@@ -128,7 +128,7 @@ const PromoteEmployee = () => {
                     Promote / Demote Employee
                 </h1>
                 <p className="text-slate-500 dark:text-slate-400">
-                    Manage employee positions and department manager assignments
+                    Manage employee positions and line manager assignments
                 </p>
             </div>
             
@@ -205,7 +205,7 @@ const PromoteEmployee = () => {
                             <div className="text-left">
                                 <p className="font-semibold">Promote to Manager</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Assign as Department Manager
+                                    Assign as Line Manager
                                 </p>
                             </div>
                         </button>
@@ -222,7 +222,7 @@ const PromoteEmployee = () => {
                             <div className="text-left">
                                 <p className="font-semibold">Demote from Manager</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    Remove Department Manager role
+                                    Remove Line Manager role
                                 </p>
                             </div>
                         </button>
@@ -254,7 +254,7 @@ const PromoteEmployee = () => {
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 text-sm text-blue-700 dark:text-blue-400">
                         <p className="font-medium mb-1">This action will:</p>
                         <ul className="list-disc list-inside space-y-1">
-                            <li>Add "Department Manager" role to the employee's user account</li>
+                            <li>Add "Line Manager" role to the employee's user account</li>
                             <li>Set the employee as the manager of the selected department</li>
                             <li>Update the employee's department if a different one is selected</li>
                         </ul>
@@ -275,7 +275,7 @@ const PromoteEmployee = () => {
                     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 text-sm text-amber-700 dark:text-amber-400">
                         <p className="font-medium mb-1">This action will:</p>
                         <ul className="list-disc list-inside space-y-1">
-                            <li>Remove "Department Manager" role from the employee's user account</li>
+                            <li>Remove "Line Manager" role from the employee's user account</li>
                             <li>Remove the employee as manager from any departments they manage</li>
                             <li>The employee will remain in their current department</li>
                         </ul>

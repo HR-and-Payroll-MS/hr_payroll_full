@@ -24,7 +24,6 @@ export default function SendRequestForEmployee() {
 
   async function submit(e) {
     e.preventDefault();
-    const destination = requestType === 'Leave' ? 'DEPARTMENT_MANAGER' : 'HR_MANAGER';
     const startDateISO = toISODate(date?.from);
     const endDateISO = toISODate(date?.to);
 
@@ -88,7 +87,7 @@ export default function SendRequestForEmployee() {
       {/* Header Section */}
       <div className="flex flex-col gap-1 px-2 py-4">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Submit a New Request</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">Please fill in the details below. Requests are automatically routed to HR or your Department Manager.</p>
+        <p className="text-slate-500 dark:text-slate-400 text-sm">Please fill in the details below. Requests are automatically routed to your Manager or Line Manager.</p>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-4">
@@ -149,7 +148,7 @@ export default function SendRequestForEmployee() {
           <div className="text-sm">
              <span className="text-slate-400">Destination:</span>
              <span className="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-100 rounded text-xs font-bold uppercase">
-               {requestType === 'Leave' ? 'Dept Manager' : 'HR Manager'}
+               {requestType === 'Leave' ? 'Line Manager' : 'Manager'}
              </span>
           </div>
           <button
@@ -205,9 +204,9 @@ export default function SendRequestForEmployee() {
 // import FileUploader from '../Components/FileUploader';
 // import useAuth from '../Context/AuthContext';
 
-// export default function SendRequestForEmployee({ role = 'HR_MANAGER' }) {
+// export default function SendRequestForEmployee({ role = 'Manager' }) {
 //   const [message, setMessage] = useState('');
-//   const [category, setCategory] = useState('hr');
+//   const [category, setCategory] = useState('system');
 //   const [file, setFile] = useState(null);
 //   const [date, setDate] = useState(null);
 //   const { axiosPrivate } = useAuth();

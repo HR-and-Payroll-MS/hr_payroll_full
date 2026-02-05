@@ -1,5 +1,5 @@
 """
-Leave Request models for HR & Payroll System.
+Leave Request models for Payroll System.
 """
 from django.db import models
 
@@ -58,7 +58,7 @@ class LeaveApproval(models.Model):
         related_name='approval_chain'
     )
     step = models.IntegerField()
-    role = models.CharField(max_length=50)  # Manager, HR, etc.
+    role = models.CharField(max_length=50)  # Manager, Line Manager, etc.
     approver = models.ForeignKey(
         'employees.Employee',
         on_delete=models.SET_NULL,

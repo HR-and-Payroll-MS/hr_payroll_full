@@ -17,7 +17,7 @@ import { Maximize, Lock, Unlock, Zap, Save, Plus, Minus } from 'lucide-react';
 const nodeTypes = { orgCard: CustomNodeCard };
 
 const OrgChartEditor = ({ initialData, userRole, onSave }) => {
-  const canEdit = userRole === 'Manager' || userRole === 'HR' || userRole === 'HR_ADMIN';
+  const canEdit = userRole === 'Manager' || userRole === 'Payroll';
   
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);

@@ -728,7 +728,7 @@ function Checkup() {
         "location": "Building A"
       },
       "job": {
-        "title": "HR Manager",
+        "title": "Manager",
         "level": "Senior"
       }
     }
@@ -752,7 +752,7 @@ function Checkup() {
         "location": "Building A"
       },
       "job": {
-        "title": "HR Manager",
+        "title": "Manager",
         "level": "Senior"
       }
     }
@@ -953,7 +953,7 @@ function Checkup() {
                          "employment_department_location": "Building A",
                          "employment_department_name": "Human Resources",
                          "employment_job_level": "Senior",
-                         "employment_job_title": "HR Manager",
+                         "employment_job_title": "Manager",
                          "employment_status":"Active",
                          "id": "emp_001",
                          "profile_full_name":"Sophia Johnson",

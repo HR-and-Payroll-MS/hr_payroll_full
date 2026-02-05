@@ -14,8 +14,8 @@ export const SocketProvider = ({ children }) => {
         if (auth?.user) {
             // Initialize Socket
             // Use Backend URL. Usually vite proxy or direct.
-            // Assuming localhost:8001 for backend
-            const backendUrl = 'http://127.0.0.1:8001'; 
+            // Assuming localhost:8000 for backend
+            const backendUrl = 'http://127.0.0.1:8000'; 
             
             const newSocket = io(backendUrl, {
                 transports: ['polling'], // Force polling as per plan

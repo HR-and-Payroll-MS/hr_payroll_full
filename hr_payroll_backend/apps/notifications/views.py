@@ -59,12 +59,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
                     # Fallback to department manager
                     elif sender.department and sender.department.manager:
                         recipients = [sender.department.manager]
-            elif receiver_group_lower in ['hr', 'human resources']:
-                recipients = Employee.objects.filter(
-                    models.Q(department__name__icontains='HR') | 
-                    models.Q(department__name__icontains='Human Resources') | 
-                    models.Q(position__icontains='HR')
-                )
+            elif receiver_group_lower in ['manager', 'management']:
+                recipients = Employee.objects.filter(user_account__groups__name='Manager')
+            elif receiver_group_lower in ['line manager', 'line_manager', 'department manager', 'department_manager']:
+                recipients = Employee.objects.filter(user_account__groups__name='Line Manager')
+            elif receiver_group_lower == 'admin':
+                recipients = Employee.objects.filter(user_account__groups__name='Admin')
             elif receiver_group_lower == 'it':
                 recipients = Employee.objects.filter(
                     models.Q(department__name__icontains='IT') | 
@@ -73,12 +73,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             elif receiver_group_lower == 'marketing':
                 recipients = Employee.objects.filter(department__name__icontains='Marketing')
             elif receiver_group_lower == 'payroll':
-                recipients = Employee.objects.filter(
-                    models.Q(department__name__icontains='Payroll') | 
-                    models.Q(position__icontains='Payroll')
-                )
-            elif receiver_group_lower in ['management', 'manager']:
-                recipients = Employee.objects.filter(position__icontains='Manager')
+                recipients = Employee.objects.filter(user_account__groups__name='Payroll')
             elif receiver_group_lower in ['employee', 'all', 'interns']:
                 recipients = Employee.objects.all()
             else:

@@ -95,7 +95,7 @@ const ViewEmployee = () => {
           await axiosPrivate.post(`/employees/${id}/promote-manager/`, {
               department_id: promoteDeptId
           });
-          alert("Employee promoted to Department Manager successfully!");
+          alert("Employee promoted to Line Manager successfully!");
           setIsPromoteModalOpen(false);
           const res = await axiosPrivate.get(`/employees/${id}/`);
           setEmployeeData(res.data);
@@ -248,7 +248,7 @@ const ViewEmployee = () => {
     <div className="flex flex-col w-full h-full justify-start bg-gray-50 dark:bg-slate-900">
         
        {/* Promote Modal */}
-       <Modal isOpen={isPromoteModalOpen} onClose={() => setIsPromoteModalOpen(false)} title="Promote to Department Manager">
+      <Modal isOpen={isPromoteModalOpen} onClose={() => setIsPromoteModalOpen(false)} title="Promote to Line Manager">
            <div className="p-4 flex flex-col gap-4">
                <p>Select the department this employee will manage:</p>
                <select 
@@ -268,7 +268,7 @@ const ViewEmployee = () => {
            </div>
        </Modal>
         
-      <Header Title={"Employee Details"} Breadcrumb={"HR Manager / Employee Management / View"} />
+      <Header Title={"Employee Details"} Breadcrumb={"Manager / Employee Management / View"} />
       
       <div className="flex flex-1 gap-5 overflow-y-scroll rounded-md h-full p-4">
         {/* Left Sidebar */}

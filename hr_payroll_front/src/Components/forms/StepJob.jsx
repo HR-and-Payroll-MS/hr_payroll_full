@@ -6,9 +6,9 @@ import useData from '../../Context/DataContextProvider';
 
 const PositionTypes = ['Full-Time', 'Part-Time', 'Contract'];
 const JobTitles = [
-  'HR Manager',
-  'Department Manager',
-  'Payroll Officer',
+  'Manager',
+  'Line Manager',
+  'Payroll',
   'Employee',
 ];
 const EmploymentTypes = ['Permanent', 'Temporary', 'Casual'];
@@ -35,7 +35,7 @@ const StepJob = ({ data, onChange }) => {
       const dept = departments.data.find((d) => d.id === deptId);
       if (!dept) return [];
 
-      // Get the department manager(s)
+      // Get the line manager(s)
       // Check if department has a manager field
       const managers = [];
       if (dept.manager) {
@@ -53,13 +53,13 @@ const StepJob = ({ data, onChange }) => {
         }
       }
 
-      // Also check employees who are Department Managers in this department
+      // Also check employees who are Line Managers in this department
       const deptEmployees =
         employees.data?.filter(
           (e) =>
             e.department === dept.name &&
-            (e.jobtitle === 'Department Manager' ||
-              e.job?.jobtitle === 'Department Manager')
+            (e.jobtitle === 'Line Manager' ||
+              e.job?.jobtitle === 'Line Manager')
         ) || [];
 
       deptEmployees.forEach((emp) => {

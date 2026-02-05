@@ -115,7 +115,7 @@ def sync_user_groups(sender, instance, created, **kwargs):
     """
     Sync Django groups with Employee job_title.
     - HR Manager -> 'Manager' group
-    - Department Manager -> 'Manager' and 'Line Manager' groups
+    - Department/Line Manager -> 'Line Manager' group
     - Payroll Officer -> 'Payroll' group
     - Employee (default) -> 'Employee' group
     """
@@ -128,11 +128,10 @@ def sync_user_groups(sender, instance, created, **kwargs):
     # Define group mappings
     group_names = set()
     
-    if 'HR MANAGER' in job_title or 'HUMAN RESOURCES MANAGER' in job_title or job_title == 'MANAGER':
-        group_names.add('HR Manager')
-        group_names.add('Manager') # Primary HR group
-    elif 'DEPARTMENT MANAGER' in job_title or 'DEPT MANAGER' in job_title or 'LINE MANAGER' in job_title:
+    if 'DEPARTMENT MANAGER' in job_title or 'DEPT MANAGER' in job_title or 'LINE MANAGER' in job_title:
         group_names.add('Line Manager')
+    elif 'HR MANAGER' in job_title or 'HUMAN RESOURCES MANAGER' in job_title or job_title == 'MANAGER':
+        group_names.add('Manager')
     elif 'PAYROLL' in job_title:
         group_names.add('Payroll')
     else:
