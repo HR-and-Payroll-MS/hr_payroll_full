@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 from datetime import timedelta
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 
 # Build paths inside the project
@@ -56,6 +57,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -103,14 +105,46 @@ if DB_ENGINE == 'sqlite':
         }
     }
 else:
+    database_url = os.getenv('DATABASE_URL', '').strip()
+    supabase_db_name = os.getenv('SUPABASE_DB_NAME')
+    supabase_db_user = os.getenv('SUPABASE_DB_USER')
+    supabase_db_password = os.getenv('SUPABASE_DB_PASSWORD')
+    supabase_db_host = os.getenv('SUPABASE_DB_HOST')
+    supabase_db_port = os.getenv('SUPABASE_DB_PORT')
+    supabase_db_sslmode = os.getenv('SUPABASE_DB_SSLMODE')
+
+    if database_url:
+        parsed_db = urlparse(database_url)
+        database_name = (parsed_db.path or '').lstrip('/')
+        database_user = parsed_db.username
+        database_password = parsed_db.password
+        database_host = parsed_db.hostname
+        database_port = parsed_db.port
+        database_sslmode = supabase_db_sslmode or os.getenv('POSTGRES_SSLMODE')
+    else:
+        database_name = supabase_db_name or os.getenv('POSTGRES_DB', 'hr_payroll')
+        database_user = supabase_db_user or os.getenv('POSTGRES_USER', 'hr_payroll')
+        database_password = supabase_db_password or os.getenv('POSTGRES_PASSWORD', 'hr_payroll')
+        database_host = supabase_db_host or os.getenv('POSTGRES_HOST', 'localhost')
+        database_port = int((supabase_db_port or os.getenv('POSTGRES_PORT', '5432')))
+        database_sslmode = supabase_db_sslmode or os.getenv('POSTGRES_SSLMODE')
+
+    if not database_sslmode and database_host and 'supabase.co' in str(database_host):
+        database_sslmode = 'require'
+
+    db_options = {}
+    if database_sslmode:
+        db_options['sslmode'] = database_sslmode
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('POSTGRES_DB', 'hr_payroll'),
-            'USER': os.getenv('POSTGRES_USER', 'hr_payroll'),
-            'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'hr_payroll'),
-            'HOST': os.getenv('POSTGRES_HOST', 'localhost'),
-            'PORT': os.getenv('POSTGRES_PORT', '5432'),
+            'NAME': database_name,
+            'USER': database_user,
+            'PASSWORD': database_password,
+            'HOST': database_host,
+            'PORT': database_port,
+            'OPTIONS': db_options,
         }
     }
 
@@ -141,8 +175,9 @@ USE_I18N = True
 USE_TZ = True
 
 # Static and Media files
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
