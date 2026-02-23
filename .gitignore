@@ -1,0 +1,15 @@
+# Local TLS certificates (machine-specific)
+localhost.pem
+localhost-key.pem
+
+# Local/temporary root artifacts
+/package-lock.json
+/move
+/'@*
+
+# Local scan/debug outputs
+hr_payroll_front/case_mismatch_report.csv
+hr_payroll_front/case_mismatch_report.json
+
+# Frontend local production env override
+hr_payroll_front/.env.production

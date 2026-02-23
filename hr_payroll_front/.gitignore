@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local env/config
+.env.production
+
+# Local scan outputs
+case_mismatch_report.csv
+case_mismatch_report.json

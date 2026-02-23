@@ -188,9 +188,28 @@ CORS_ALLOWED_ORIGINS = os.getenv(
     'CORS_ALLOWED_ORIGINS',
     'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000'
 ).split(',')
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    origin.strip()
+    for origin in os.getenv('CORS_ALLOWED_ORIGIN_REGEXES', '').split(',')
+    if origin.strip()
+]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# Celery / Redis
+CELERY_BROKER_URL = os.getenv(
+    'CELERY_BROKER_URL',
+    os.getenv('REDIS_URL', 'redis://localhost:6379/0'),
+)
+CELERY_RESULT_BACKEND = os.getenv(
+    'CELERY_RESULT_BACKEND',
+    os.getenv('REDIS_URL', 'redis://localhost:6379/1'),
+)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
 
 # File upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10MB

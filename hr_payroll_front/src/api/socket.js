@@ -3,6 +3,10 @@ import { getAccessToken, refreshToken } from "../utils/auth";
 
 let socket = null;
 let currentPath = "/ws/notifications/socket.io"; 
+const SOCKET_BASE_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_BASE_URL ||
+  "http://localhost:8001";
 // let currentPath = "/ws/notifications/"; 
 
 export function connectSocket(userId, path = currentPath) {
@@ -15,7 +19,7 @@ export function connectSocket(userId, path = currentPath) {
   const token = getAccessToken();
   if (!token) return null;
 
-  socket = io("http://localhost:8001", {
+  socket = io(SOCKET_BASE_URL, {
     transports: ["polling"],
     query: { userId }, // Pass userId for backend session
     reconnection: true,
