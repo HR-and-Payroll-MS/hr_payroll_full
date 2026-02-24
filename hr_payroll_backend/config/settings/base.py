@@ -105,32 +105,45 @@ if DB_ENGINE == 'sqlite':
         }
     }
 else:
-    database_url = os.getenv('DATABASE_URL', '').strip()
-    supabase_db_name = os.getenv('SUPABASE_DB_NAME')
-    supabase_db_user = os.getenv('SUPABASE_DB_USER')
-    supabase_db_password = os.getenv('SUPABASE_DB_PASSWORD')
-    supabase_db_host = os.getenv('SUPABASE_DB_HOST')
-    supabase_db_port = os.getenv('SUPABASE_DB_PORT')
-    supabase_db_sslmode = os.getenv('SUPABASE_DB_SSLMODE')
+    use_supabase_db = os.getenv('USE_SUPABASE_DB', 'False').lower() == 'true'
 
-    if database_url:
-        parsed_db = urlparse(database_url)
-        database_name = (parsed_db.path or '').lstrip('/')
-        database_user = parsed_db.username
-        database_password = parsed_db.password
-        database_host = parsed_db.hostname
-        database_port = parsed_db.port
-        database_sslmode = supabase_db_sslmode or os.getenv('POSTGRES_SSLMODE')
+    if use_supabase_db:
+        database_url = (
+            os.getenv('SUPABASE_DATABASE_URL', '').strip()
+            or os.getenv('DATABASE_URL', '').strip()
+        )
+        supabase_db_name = os.getenv('SUPABASE_DB_NAME')
+        supabase_db_user = os.getenv('SUPABASE_DB_USER')
+        supabase_db_password = os.getenv('SUPABASE_DB_PASSWORD')
+        supabase_db_host = os.getenv('SUPABASE_DB_HOST')
+        supabase_db_port = os.getenv('SUPABASE_DB_PORT', '5432')
+        supabase_db_sslmode = os.getenv('SUPABASE_DB_SSLMODE', 'require')
+
+        if database_url:
+            parsed_db = urlparse(database_url)
+            database_name = (parsed_db.path or '').lstrip('/')
+            database_user = parsed_db.username
+            database_password = parsed_db.password
+            database_host = parsed_db.hostname
+            database_port = parsed_db.port or int(supabase_db_port)
+            database_sslmode = supabase_db_sslmode
+        else:
+            database_name = supabase_db_name
+            database_user = supabase_db_user
+            database_password = supabase_db_password
+            database_host = supabase_db_host
+            database_port = int(supabase_db_port)
+            database_sslmode = supabase_db_sslmode
+
+        if not database_sslmode and database_host and 'supabase.co' in str(database_host):
+            database_sslmode = 'require'
     else:
-        database_name = supabase_db_name or os.getenv('POSTGRES_DB', 'hr_payroll')
-        database_user = supabase_db_user or os.getenv('POSTGRES_USER', 'hr_payroll')
-        database_password = supabase_db_password or os.getenv('POSTGRES_PASSWORD', 'hr_payroll')
-        database_host = supabase_db_host or os.getenv('POSTGRES_HOST', 'localhost')
-        database_port = int((supabase_db_port or os.getenv('POSTGRES_PORT', '5432')))
-        database_sslmode = supabase_db_sslmode or os.getenv('POSTGRES_SSLMODE')
-
-    if not database_sslmode and database_host and 'supabase.co' in str(database_host):
-        database_sslmode = 'require'
+        database_name = os.getenv('POSTGRES_DB', 'hr_payroll')
+        database_user = os.getenv('POSTGRES_USER', 'hr_payroll')
+        database_password = os.getenv('POSTGRES_PASSWORD', 'hr_payroll')
+        database_host = os.getenv('POSTGRES_HOST', 'localhost')
+        database_port = int(os.getenv('POSTGRES_PORT', '5432'))
+        database_sslmode = os.getenv('POSTGRES_SSLMODE')
 
     db_options = {}
     if database_sslmode:

@@ -15,6 +15,8 @@ services:
         value: "False"
       - key: DB_ENGINE
         value: postgres
+      - key: USE_SUPABASE_DB
+        value: "True"
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
@@ -70,6 +72,8 @@ services:
         value: "False"
       - key: DB_ENGINE
         value: postgres
+      - key: USE_SUPABASE_DB
+        value: "True"
       - key: DATABASE_URL
         sync: false
       - key: SECRET_KEY
