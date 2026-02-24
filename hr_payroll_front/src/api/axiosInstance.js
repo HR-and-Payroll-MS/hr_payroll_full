@@ -1,9 +1,19 @@
 import axios from 'axios';
 
+const ensureApiV1 = (url) => {
+  if (!url) return '';
+  const clean = url.trim().replace(/\/$/, '');
+  if (/\/api\/v\d+$/i.test(clean)) return clean;
+  return `${clean}/api/v1`;
+};
+
+const envApiUrl =
+  import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE || '';
+const envBaseUrl = import.meta.env.VITE_BASE_URL || '';
+
 export const BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  import.meta.env.VITE_BASE_URL ||
-  import.meta.env.VITE_API_BASE ||
+  ensureApiV1(envApiUrl) ||
+  ensureApiV1(envBaseUrl) ||
   'http://localhost:8001/api/v1';
 // export const BASE_URL = 'http://172.16.27.124:3000/api/v1';
 
