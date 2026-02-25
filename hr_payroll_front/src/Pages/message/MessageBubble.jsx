@@ -32,12 +32,21 @@ const AudioPlayer = ({ duration }) => (
 const getMediaUrl = (path) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
+  const isLocalUrl = (url = '') => /https?:\/\/(localhost|127\.0\.0\.1)/i.test(url);
+  const isDeployedHost =
+    typeof window !== 'undefined' &&
+    !['localhost', '127.0.0.1'].includes(window.location.hostname);
   // Derive host from API base, stripping the /api/v1 suffix
-  const apiBase =
+  const rawApiBase =
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE ||
     import.meta.env.VITE_BASE_URL ||
-    'http://localhost:8001/api/v1';
+    '';
+  const apiBase =
+    (isDeployedHost && isLocalUrl(rawApiBase)
+      ? ''
+      : rawApiBase) ||
+    'https://hr-payroll-full.onrender.com/api/v1';
   const hostBase = apiBase.replace(/\/api\/v\d+$/, '');
   return `${hostBase}${path}`;
 };

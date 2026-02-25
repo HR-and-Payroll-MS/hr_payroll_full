@@ -1,5 +1,10 @@
 import axios from 'axios';
 
+const isLocalUrl = (url = '') => /https?:\/\/(localhost|127\.0\.0\.1)/i.test(url);
+const isDeployedHost =
+  typeof window !== 'undefined' &&
+  !['localhost', '127.0.0.1'].includes(window.location.hostname);
+
 const ensureApiV1 = (url) => {
   if (!url) return '';
   const clean = url.trim().replace(/\/$/, '');
@@ -11,10 +16,13 @@ const envApiUrl =
   import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE || '';
 const envBaseUrl = import.meta.env.VITE_BASE_URL || '';
 
+const safeEnvApiUrl = isDeployedHost && isLocalUrl(envApiUrl) ? '' : envApiUrl;
+const safeEnvBaseUrl = isDeployedHost && isLocalUrl(envBaseUrl) ? '' : envBaseUrl;
+
 export const BASE_URL =
-  ensureApiV1(envApiUrl) ||
-  ensureApiV1(envBaseUrl) ||
-  'http://localhost:8001/api/v1';
+  ensureApiV1(safeEnvApiUrl) ||
+  ensureApiV1(safeEnvBaseUrl) ||
+  'https://hr-payroll-full.onrender.com/api/v1';
 // export const BASE_URL = 'http://172.16.27.124:3000/api/v1';
 
 export const axiosPublic = axios.create({

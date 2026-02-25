@@ -1,12 +1,22 @@
 import { io } from "socket.io-client";
 import { getAccessToken, refreshToken } from "../utils/auth";
 
+const isLocalUrl = (url = '') => /https?:\/\/(localhost|127\.0\.0\.1)/i.test(url);
+const isDeployedHost =
+  typeof window !== 'undefined' &&
+  !['localhost', '127.0.0.1'].includes(window.location.hostname);
+
 let socket = null;
 let currentPath = "/ws/notifications/socket.io"; 
-const SOCKET_BASE_URL =
+const rawSocketBaseUrl =
   import.meta.env.VITE_SOCKET_URL ||
   import.meta.env.VITE_BASE_URL ||
-  "http://localhost:8001";
+  "";
+const SOCKET_BASE_URL =
+  (isDeployedHost && isLocalUrl(rawSocketBaseUrl)
+    ? ""
+    : rawSocketBaseUrl) ||
+  "https://hr-payroll-full.onrender.com";
 // let currentPath = "/ws/notifications/"; 
 
 export function connectSocket(userId, path = currentPath) {
