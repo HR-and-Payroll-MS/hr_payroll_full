@@ -4,7 +4,7 @@ import Table from '../../Components/Table';
 import useAuth from '../../Context/AuthContext';
 
 const MyOvertimePage = () => {
-  const { axiosPrivate, user: authUser } = useAuth();
+  const { axiosPrivate, auth } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -12,14 +12,14 @@ const MyOvertimePage = () => {
     const fetchData = async () => {
       try {
         const response = await axiosPrivate.get(
-          '/attendances/requests/overtime/'
+          '/attendances/requests/overtime/',
         );
         const raw = response.data.results || response.data || [];
-        const empId = authUser?.employee_id
-          ? Number(authUser.employee_id)
+        const empId = auth?.user?.employee_id
+          ? Number(auth.user.employee_id)
           : null;
         const isEmployee =
-          authUser?.role && authUser.role.toLowerCase().includes('employee');
+          auth?.user?.role && auth.user.role.toLowerCase().includes('employee');
 
         let filtered = raw;
         // For employees, show only assignments that include them
@@ -45,15 +45,9 @@ const MyOvertimePage = () => {
       }
     };
     fetchData();
-  }, [axiosPrivate, authUser]);
+  }, [axiosPrivate, auth]);
 
-  const tableStructure = [
-    { type: 'text', key: 'date' },
-    { type: 'text', key: 'hours' },
-    { type: 'text', key: 'manager_name' },
-    { type: 'text', key: 'justification' },
-    { type: 'status', key: 'status' },
-  ];
+  const tableStructure = [81, 1, 1, 1, 1];
 
   const tableHeaderTitles = [
     'Date',
@@ -96,7 +90,13 @@ const MyOvertimePage = () => {
             Data={data}
             Structure={tableStructure}
             title={tableHeaderTitles}
-            ke={['date', 'hours', 'manager_name', 'justification', 'status']}
+            ke={[
+              ['date'],
+              ['hours'],
+              ['manager_name'],
+              ['justification'],
+              ['status'],
+            ]}
             clickable={false}
           />
         )}

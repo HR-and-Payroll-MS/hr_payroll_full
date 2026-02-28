@@ -24,6 +24,7 @@ import Settingz from './Pages/settings/Settingz';
 import CompanyInfo from './Pages/settings/sub/CompanyInfo';
 import ChangePassword from './Pages/settings/sub/ChangePassword';
 import WorkSchedule from './Pages/settings/sub/WorkSchedule';
+import PolicyShifts from './Pages/settings/sub/PolicyShifts';
 import Checklist from './Pages/HR_Manager/Checklist/Checklist';
 import DashboardLayout from './layouts/DashboardLayout';
 import AddEmployee from './Pages/HR_Manager/Employee Management/AddEmployee';
@@ -39,7 +40,7 @@ import EmployeeAttendanceDetail from './Example/AttendanceExample/EmployeeAttend
 import CVReader from './Example/CVReader';
 import { setLocalData } from './Hooks/useLocalStorage';
 import EmployeeAttendanceList from './Pages/HR_Manager/Attendance/EmployeeAttendanceList';
-import { Checkup3 } from './Example/checkup';
+import { Checkup3 } from './Example/Checkup';
 import ViewEmployeeDetail from './Pages/HR_Manager/Employee Management/singleEmployee/ViewEmployeeDetail';
 import ClockIn from './Pages/clockIn_out/ClockIn';
 import UploadDocuments from './Pages/HR_Manager/Employee Management/UploadDocuments';
@@ -108,6 +109,7 @@ function App() {
       <Route path="CompanyInfo" element={<CompanyInfo />} />
       <Route path="ChangePassword" element={<ChangePassword />} />
       <Route path="WorkSchedule" element={<WorkSchedule />} />
+      <Route path="PolicyShifts" element={<PolicyShifts />} />
       <Route path="FAQ" element={<FAQPage />} />
     </Route>
   );
@@ -154,6 +156,7 @@ function App() {
           <Route path="Payroll" element={<MainLayout />}>
             {sharedSettingsRoutes}
             {sharedHelpRoutes}
+            <Route path="policies" element={<Policy />} />
             {sharedNotificationRoutes}
             {sharedGlobalRoutes}
             <Route path="U" element={<NewsFeedPage />} />
@@ -201,7 +204,7 @@ function App() {
           </Route>
         </Route>
         {/* ------------------------- Manager ---------------------- */}
-        <Route element={<Routes allowedRoles={['Manager']} />}>
+        <Route element={<Routes allowedRoles={['Manager', 'HR Manager']} />}>
           <Route path="hr_dashboard" element={<MainLayout />}>
             <Route path="clock_in" element={<ClockIn />} />
             <Route index element={<DashboardLayout />} />
@@ -215,6 +218,7 @@ function App() {
             <Route path="View_Employee" element={<ViewEmployee />} />
             <Route path="message" element={<ChatIndex />} />
             <Route path="tax_code" element={<TaxCode />} />
+            <Route path="policies" element={<Policy />} />
             <Route path="efficiency_report" element={<EfficiencyReport />} />
 
             <Route path="Addemployee" element={<AddEmployee />} />
@@ -340,6 +344,7 @@ function App() {
             <Route path="clock_in" element={<ClockIn />} />
             <Route index element={<DashboardLayout />} />
             {sharedHelpRoutes}
+            <Route path="policies" element={<Policy />} />
             {sharedSettingsRoutes}
             {sharedNotificationRoutes}
             {sharedGlobalRoutes}
@@ -430,8 +435,8 @@ function App() {
         <Route path="*" element={<NotFound />} />
         {/* <Route path="/" element={<ViewEmployeeDetail/>}/> */}
         {/* <Route path="/" element={<EmployeeDirectory/>}/> */}
-      </>
-    )
+      </>,
+    ),
   );
 
   return (

@@ -35,7 +35,7 @@ export function AuthContextProvider({ children }) {
         return newAccess;
       }
     } catch (err) {
-      console.error("Refresh function failed", err);
+      console.error('Refresh function failed', err);
     }
     return null;
   }, [refreshFn]);
@@ -63,11 +63,11 @@ export function AuthContextProvider({ children }) {
 
     if (access && userId) {
       setAuth({
-        user: { 
+        user: {
           id: pk ? parseInt(pk) : null,
-          username: userId, 
+          username: userId,
           role: userRole,
-          employee_id: employeeId 
+          employee_id: employeeId,
         },
         accessToken: access,
       });
@@ -84,22 +84,33 @@ export function AuthContextProvider({ children }) {
             headers: { Authorization: `Bearer ${auth.accessToken}` },
           });
           const userData = res.data;
-          
+
           // Also Ensure PK is saved if missing
           if (userData.id && !getLocalData('pk')) {
-               setLocalData('pk', userData.id);
-               setAuth(prev => ({...prev, user: {...prev.user, id: userData.id}}));
+            setLocalData('pk', userData.id);
+            setAuth((prev) => ({
+              ...prev,
+              user: { ...prev.user, id: userData.id },
+            }));
           }
 
           if (userData.employee_id) {
-            console.log("AuthContext: Found employee_id in me:", userData.employee_id);
+            console.log(
+              'AuthContext: Found employee_id in me:',
+              userData.employee_id,
+            );
             setLocalData('user_id', userData.employee_id);
             setAuth((prev) => ({
               ...prev,
               user: { ...prev.user, employee_id: userData.employee_id },
             }));
           } else {
-             console.warn("AuthContext: No employee_id in userData:", userData);
+            console.warn('AuthContext: No employee_id in userData:', userData);
+            try {
+              localStorage.removeItem('user_id');
+            } catch (e) {
+              console.error('AuthContext: Failed to clear user_id', e);
+            }
           }
         } catch (err) {
           console.error('AuthContext: Failed to fetch user info:', err);
@@ -112,7 +123,10 @@ export function AuthContextProvider({ children }) {
   // Login Function
   const login = useCallback(async (username, password) => {
     try {
-      const res = await axiosPublic.post('/auth/djoser/jwt/create/', { username, password });
+      const res = await axiosPublic.post('/auth/djoser/jwt/create/', {
+        username,
+        password,
+      });
       const { access, refresh } = res.data || {};
 
       if (!access || !refresh) throw new Error('Invalid auth response');
@@ -130,15 +144,23 @@ export function AuthContextProvider({ children }) {
       setLocalData('pk', userData.id); // Save PK
       setLocalData('role', userData.groups?.[0] ?? null);
       setLocalData('groups', JSON.stringify(userData.groups || []));
-      setLocalData('user_id', userData.employee_id);
+      if (userData.employee_id) {
+        setLocalData('user_id', userData.employee_id);
+      } else {
+        try {
+          localStorage.removeItem('user_id');
+        } catch (e) {
+          console.error('AuthContext: Failed to clear user_id', e);
+        }
+      }
 
       setAuth({
-        user: { 
+        user: {
           id: userData.id,
-          username: userData.username, 
+          username: userData.username,
           role: userData.groups?.[0] ?? null,
           groups: userData.groups || [],
-          employee_id: userData.employee_id
+          employee_id: userData.employee_id,
         },
         accessToken: access,
       });
@@ -150,7 +172,18 @@ export function AuthContextProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ auth, setAuth, isAuthLoading, login, logout, searchEmployees, loading, axiosPrivate }}>
+    <AuthContext.Provider
+      value={{
+        auth,
+        setAuth,
+        isAuthLoading,
+        login,
+        logout,
+        searchEmployees,
+        loading,
+        axiosPrivate,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -161,41 +194,6 @@ export default function useAuth() {
   if (!ctx) throw new Error('useAuth must be used inside AuthContextProvider');
   return ctx;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import React, {
 //   createContext,
@@ -343,7 +341,7 @@ export default function useAuth() {
 //         setLocalData('id', userData.username);
 //         setLocalData('role', userData.groups?.[0] ?? null);
 //         console.log("role",userData.groups?.[0])
-//         setLocalData('user_id', userData.employee_id); 
+//         setLocalData('user_id', userData.employee_id);
 
 //         // Update auth state → triggers employee fetch automatically
 //         setAuth({
@@ -397,69 +395,6 @@ export default function useAuth() {
 //   }
 //   return ctx;
 // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import React, { createContext, useContext, useEffect, useState,useCallback,useMemo } from 'react';
 // import {setLocalData , getLocalData} from '../Hooks/useLocalStorage'
@@ -525,8 +460,6 @@ export default function useAuth() {
 //   //         department: e.job?.department || "",
 //   //       }));
 
-
-        
 //   //       // console.log(res.data,"<-- res data")
 //   //       // console.log(data,"<-- processed data")
 //   //       setSearchEmployees(data);
@@ -595,9 +528,9 @@ export default function useAuth() {
 
 //       setLocalData('access',access);
 //       setLocalData('refresh',refresh);
-      
+
 //       console.log(getLocalData('access'),"<--- access \n",getLocalData('refresh'),"<-----refresh")
- 
+
 //       const userRes = await axiosPrivate.get('/users/me/');
 //       const userData = userRes.data;
 //       console.log(userData,"<-- user data after login")
@@ -617,9 +550,8 @@ export default function useAuth() {
 //     throw new Error(msg)
 
 //     }
-    
-//   },[axiosPrivate, setUser]);
 
+//   },[axiosPrivate, setUser]);
 
 //   useEffect(() => {
 //     const access = getLocalData('access');
@@ -643,133 +575,6 @@ export default function useAuth() {
 //   if(!ctx) throw new Error('useAuth must be used inside AuthcontextProvider');
 //   return ctx;
 // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import React, { createContext, useContext, useEffect, useState } from 'react';
 // import { axiosPublic ,axiosPrivate } from '../api/axiosInstance'

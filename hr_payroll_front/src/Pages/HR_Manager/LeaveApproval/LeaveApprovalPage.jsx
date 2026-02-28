@@ -26,7 +26,7 @@ export default function LeaveApprovalPage() {
     .filter(Boolean)
     .map((r) => String(r).toLowerCase());
   const isHR = roleTokens.some(
-    (r) => r.includes('hr') || r.includes('payroll') || r.includes('admin')
+    (r) => r.includes('hr') || r.includes('payroll') || r.includes('admin'),
   );
   const isManager = roleTokens.some((r) => r.includes('manager'));
   const [requests, setRequests] = useState([]);
@@ -47,6 +47,18 @@ export default function LeaveApprovalPage() {
           axiosPrivate.get('/employees/?page_size=1000'),
         ]);
 
+        // helper to strip HTML tags and return plain text
+        const stripHtml = (html) => {
+          if (!html) return '';
+          try {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || '';
+          } catch (e) {
+            return String(html);
+          }
+        };
+
         // Transform backend data to match frontend expected format
         const transformedRequests = (
           requestsRes.data.results ||
@@ -59,9 +71,12 @@ export default function LeaveApprovalPage() {
           startDate: req.start_date,
           endDate: req.end_date,
           days: req.days,
-          reason: req.reason,
+          // store plain text reason (strip any HTML coming from backend)
+          reason: stripHtml(req.reason),
           status: req.status,
           submittedAt: req.submitted_at,
+          // include any employee_info returned by the backend
+          employee_info: req.employee_info || null,
           approvalChain: (req.approval_chain || []).map((ac) => ({
             step: ac.step,
             role: ac.role,
@@ -70,23 +85,23 @@ export default function LeaveApprovalPage() {
           })),
           requesterIsManager: (req.approval_chain || []).some(
             (ac) =>
-              ac.step === 1 && ac.role === 'Manager' && ac.status === 'approved'
+              ac.step === 1 &&
+              ac.role === 'Manager' &&
+              ac.status === 'approved',
           ),
           attachments: req.attachments || [],
           notes: [],
         }));
 
-        const transformedEmployees = (
-          employeesRes.data.results ||
-          employeesRes.data ||
-          []
-        ).map((emp) => ({
+        const employeesList =
+          employeesRes.data.results || employeesRes.data || [];
+
+        // Map backend employees to frontend shape
+        const transformedEmployees = employeesList.map((emp) => ({
           id: emp.id,
           name:
             emp.fullname ||
-            `${emp.general?.firstname || ''} ${
-              emp.general?.lastname || ''
-            }`.trim() ||
+            `${emp.general?.firstname || ''} ${emp.general?.lastname || ''}`.trim() ||
             'Unknown',
           dept:
             emp.department?.name ||
@@ -95,14 +110,34 @@ export default function LeaveApprovalPage() {
             emp.job?.department ||
             'N/A',
           role: emp.position || emp.job?.jobtitle || 'Employee',
-          // FIXED: Map photo from general or top-level, handle missing data
+          // Map photo from general or top-level, handle missing data
           photo: emp.general?.photo || emp.photo || null,
           avatarColor: 'bg-indigo-500',
-          leaveBalance: 10, // Default placeholder
+          leaveBalance: 10,
         }));
 
+        // Merge any employee_info present on requests into the employees list (prefer request-provided data)
+        const empById = new Map(transformedEmployees.map((e) => [e.id, e]));
+        (requestsRes.data.results || requestsRes.data || []).forEach((req) => {
+          if (req.employee_info) {
+            const info = req.employee_info;
+            const existing = empById.get(info.id) || {};
+            empById.set(info.id, {
+              id: info.id,
+              name: info.fullname || existing.name || 'Unknown',
+              dept: info.department || existing.dept || 'N/A',
+              role: info.position || existing.role || 'Employee',
+              photo: info.photo || existing.photo || null,
+              avatarColor: existing.avatarColor || 'bg-indigo-500',
+              leaveBalance: existing.leaveBalance || 10,
+            });
+          }
+        });
+
+        const finalEmployees = Array.from(empById.values());
+
         setRequests(transformedRequests);
-        setEmployees(transformedEmployees);
+        setEmployees(finalEmployees);
       } catch (error) {
         console.error('Failed to fetch leave data:', error);
         pushToast('Failed to load leave requests');
@@ -189,18 +224,18 @@ export default function LeaveApprovalPage() {
                 approvalChain: r.approvalChain.map((step, index) =>
                   step.status === 'pending'
                     ? { ...step, status: decision, approver: 'You' }
-                    : step
+                    : step,
                 ),
               }
-            : r
-        )
+            : r,
+        ),
       );
 
       setDrawerOpen(false);
       pushToast(
         decision === 'approved'
           ? 'Leave Request Approved'
-          : 'Leave Request Denied'
+          : 'Leave Request Denied',
       );
       // Notify sidebar badges to refresh
       try {

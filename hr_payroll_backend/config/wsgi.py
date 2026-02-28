@@ -7,6 +7,7 @@ from django.core.wsgi import get_wsgi_application
 from config.socket_app import sio
 import socketio
 
+os.environ.setdefault('DJANGO_ENV', 'local')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 application = get_wsgi_application()
 application = socketio.WSGIApp(sio, application)

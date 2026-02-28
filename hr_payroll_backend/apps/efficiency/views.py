@@ -51,7 +51,7 @@ class EvaluationSubmitView(APIView):
         user = request.user
         if not IsHRManager().has_permission(request, self):
             user_groups = [g.name.upper() for g in user.groups.all()]
-            is_line_manager = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
+            is_line_manager = 'LINE MANAGER' in user_groups
             if is_line_manager:
                 target_emp = Employee.objects.get(id=employee_id)
                 if target_emp.department_id != user.employee.department_id:
@@ -92,7 +92,7 @@ class EfficiencyEvaluationViewSet(viewsets.ReadOnlyModelViewSet):
             return queryset
             
         user_groups = [g.name.upper() for g in user.groups.all()]
-        is_line_manager = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
+        is_line_manager = 'LINE MANAGER' in user_groups
         
         if is_line_manager and hasattr(user, 'employee'):
             # Only see evaluations for their department

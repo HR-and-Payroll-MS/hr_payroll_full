@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import Table from '../../../Components/Table';
 import Header from '../../../Components/Header';
 import { SearchStatus } from '../../../Components/Level2Hearder';
@@ -8,9 +8,26 @@ import { useTable } from '../../../Context/useTable';
 import Icon from '../../../Components/Icon';
 import { useProfile } from '../../../Context/ProfileContext';
 import EmployeeDirectorySkeleton from '../../../animations/Skeleton/EmployeeDirectorySkeleton';
+import { DirectoryList } from '../Employee/Employee_Sub/DirectoryList';
 
 function EmployeeDirectory() {
   const [isRotating, setIsRotating] = useState(false);
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem('employeeDirectoryView') || 'table';
+    } catch (e) {
+      return 'table';
+    }
+  });
+
+  const handleViewChange = (v) => {
+    setViewMode(v);
+    try {
+      localStorage.setItem('employeeDirectoryView', v);
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const { refreshProfile } = useProfile();
 
@@ -20,10 +37,28 @@ function EmployeeDirectory() {
     refreshProfile();
   };
   const navigate = useNavigate();
-  const [filters, setFilters] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('employeeDirectoryFilters')) || {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [searchTerm, setSearchTerm] = useState(() => {
+    try {
+      return localStorage.getItem('employeeDirectorySearch') || '';
+    } catch (e) {
+      return '';
+    }
+  });
   const [ExportData, setExportData] = useState(null);
-  const [sortOption, setSortOption] = useState('name-asc');
+  const [sortOption, setSortOption] = useState(() => {
+    try {
+      return localStorage.getItem('employeeDirectorySort') || 'name-asc';
+    } catch (e) {
+      return 'name-asc';
+    }
+  });
 
   const { data, isLoading, refresh } = useTable('users');
 
@@ -31,6 +66,9 @@ function EmployeeDirectory() {
   const handleSearchClick = (e) => navigate(`/hr_dashboard/users/${e}`);
   const setFilter = (e) => {
     setSearchTerm(e);
+    try {
+      localStorage.setItem('employeeDirectorySearch', e || '');
+    } catch (err) {}
   };
   const updateFilter = (obj) => {
     const key = Object.keys(obj)[0];
@@ -38,11 +76,30 @@ function EmployeeDirectory() {
     setFilters((prev) => {
       if (value == null || value === '') {
         const { [key]: removed, ...rest } = prev;
+        try {
+          localStorage.setItem(
+            'employeeDirectoryFilters',
+            JSON.stringify(rest),
+          );
+        } catch (err) {}
         return rest;
       }
-      return { ...prev, [key]: value };
+      const updated = { ...prev, [key]: value };
+      try {
+        localStorage.setItem(
+          'employeeDirectoryFilters',
+          JSON.stringify(updated),
+        );
+      } catch (err) {}
+      return updated;
     });
   };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('employeeDirectorySort', sortOption);
+    } catch (err) {}
+  }, [sortOption]);
 
   const handleExportData = useCallback((newData) => {
     setExportData(newData);
@@ -99,23 +156,18 @@ function EmployeeDirectory() {
     }
 
     return sorted;
+    // If filters or search are active but produced zero results while
+    // the backend returned items, fall back to showing all items so
+    // the directory doesn't appear empty due to stale localStorage.
+    const final =
+      sorted.length === 0 &&
+      sourceData.length > 0 &&
+      (searchTerm || Object.keys(filters).length > 0)
+        ? sourceData
+        : sorted;
+
+    return final;
   }, [data, filters, searchTerm, sortOption]);
-  // const filteredDataForAll = useMemo(() => {
-  //   const sourceData = data?.results || data || [];
-
-  //   return sourceData.filter(item => {
-  //     const matchesSearch = item?.general?.fullname
-  //       ?.toLowerCase()
-  //       .includes(searchTerm.toLowerCase());
-  //     const matchesFilters = Object.entries(filters).every(([key, value]) => {
-  //       if (!value) return true;
-  //       return item.general?.[key] === value || item.payroll?.[key] === value || item.job?.[key] === value;
-  //     });
-
-  //     return matchesSearch && matchesFilters;
-  //   });
-  // }, [data, filters, searchTerm]);
-
   const structure = [3, 1, 1, 1, 1, 1];
   const title = [
     'USER',
@@ -174,18 +226,23 @@ function EmployeeDirectory() {
         setFilter={setFilter}
         showSort
         onSortChange={setSortOption}
+        onViewChange={handleViewChange}
       />
       {console.log(filteredData)}
       <div className="flex-1 mt-4 h-full max-h-9/12">
-        <Table
-          pages={9}
-          Data={filteredData}
-          setExportData={handleExportData}
-          title={title}
-          Structure={structure}
-          ke={ke2}
-          onRowClick={onRowClick}
-        />
+        {viewMode === 'grid' ? (
+          <DirectoryList data={filteredData} onItemClick={onRowClick} />
+        ) : (
+          <Table
+            pages={9}
+            Data={filteredData}
+            setExportData={handleExportData}
+            title={title}
+            Structure={structure}
+            ke={ke2}
+            onRowClick={onRowClick}
+          />
+        )}
       </div>
     </div>
   );

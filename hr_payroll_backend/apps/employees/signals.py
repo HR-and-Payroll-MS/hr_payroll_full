@@ -45,9 +45,13 @@ def create_user_for_employee(sender, instance, created, **kwargs):
         # Create User
         # We must set the employee link IMMEDIATELY to prevent the User signal 
         # from trying to create ANOTHER employee (infinite loop prevention)
+        # Determine email: prefer temporary `_user_email` set by the creator,
+        # otherwise fall back to any existing attribute (kept for compatibility),
+        # then finally use a generated local address.
+        provided_email = getattr(instance, '_user_email', None) or getattr(instance, 'email', None)
         user = User(
             username=username,
-            email=instance.email or f"{username}@company.local",
+            email=provided_email or f"{username}@company.local",
             first_name=instance.first_name,
             last_name=instance.last_name,
             employee=instance # Link strictly here
@@ -89,7 +93,6 @@ def create_employee_for_user(sender, instance, created, **kwargs):
         employee = Employee.objects.create(
             first_name=instance.first_name or instance.username,
             last_name=instance.last_name or "User",
-            email=instance.email,
             job_title="New User",
             status="Active"
         )
@@ -114,8 +117,8 @@ def create_employee_for_user(sender, instance, created, **kwargs):
 def sync_user_groups(sender, instance, created, **kwargs):
     """
     Sync Django groups with Employee job_title.
-    - HR Manager -> 'Manager' group
-    - Department Manager -> 'Manager' and 'Line Manager' groups
+    - Manager -> 'Manager' group
+    - Line Manager -> 'Line Manager' group
     - Payroll Officer -> 'Payroll' group
     - Employee (default) -> 'Employee' group
     """
@@ -129,8 +132,8 @@ def sync_user_groups(sender, instance, created, **kwargs):
     group_names = set()
     
     if 'HR MANAGER' in job_title or 'HUMAN RESOURCES MANAGER' in job_title or job_title == 'MANAGER':
-        group_names.add('HR Manager')
-        group_names.add('Manager') # Primary HR group
+        # Canonicalize HR role to 'Manager'
+        group_names.add('Manager')
     elif 'DEPARTMENT MANAGER' in job_title or 'DEPT MANAGER' in job_title or 'LINE MANAGER' in job_title:
         group_names.add('Line Manager')
     elif 'PAYROLL' in job_title:
@@ -150,6 +153,14 @@ def sync_user_groups(sender, instance, created, **kwargs):
     
     # Get current names to check if we even need to change anything
     current_group_names = set(user.groups.values_list('name', flat=True))
+
+    # Prevent accidental demotion of privileged users when job_title is blank
+    # or doesn't explicitly map to a privileged role.
+    privileged_groups = {'Manager', 'Line Manager', 'Payroll', 'Admin'}
+    has_privileged = bool(current_group_names.intersection(privileged_groups))
+    job_title_maps_to_privileged = any(
+        name in privileged_groups for name in group_names
+    )
     
     # If it's an admin, don't strip their admin groups
     if user.is_staff or user.is_superuser or 'Admin' in current_group_names:
@@ -157,8 +168,17 @@ def sync_user_groups(sender, instance, created, **kwargs):
         for group in target_groups:
            user.groups.add(group)
     else:
-        # For regular users, enforce the specific groups for the title
-        user.groups.set(target_groups)
+        # For regular users, enforce the specific groups for the title.
+        # If the user already has a privileged role and the job_title doesn't
+        # explicitly map to a privileged role, avoid overwriting their groups.
+        if has_privileged and not job_title_maps_to_privileged:
+            # Do not overwrite privileged roles just because job_title is blank
+            # or a non-privileged value. Also avoid adding 'Employee' in this case.
+            for group in target_groups:
+                if group.name != 'Employee':
+                    user.groups.add(group)
+        else:
+            user.groups.set(target_groups)
     
     print(f"SIGNAL: Synced groups for {user.username} based on job title '{instance.job_title}': {list(group_names)}")
 
@@ -254,6 +274,17 @@ def notify_employee_changes(sender, instance, created, **kwargs):
             link=f"/my-profile"
         )
 
+    # Check Job Title Change (log for auditing and debugging)
+    if hasattr(instance, '_old_job_title') and instance._old_job_title != instance.job_title:
+        try:
+            import datetime, traceback
+            entry = f"{datetime.datetime.utcnow().isoformat()} - Employee {getattr(instance,'employee_id', instance.id)} job_title changed from '{instance._old_job_title}' to '{instance.job_title}'\n"
+            entry += ''.join(traceback.format_stack(limit=10))
+            with open('job_title_changes.log', 'a', encoding='utf-8') as fh:
+                fh.write(entry + "\n")
+        except Exception:
+            pass
+
     # Check Line Manager Change
     if hasattr(instance, '_old_line_manager') and instance._old_line_manager != instance.line_manager:
         new_manager = instance.line_manager
@@ -328,3 +359,14 @@ def notify_employee_changes(sender, instance, created, **kwargs):
             # Delete attendance records before the new join date
             print(f"SIGNAL: Purging attendance for {instance.fullname} before {new_date}")
             Attendance.objects.filter(employee=instance, date__lt=new_date).delete()
+
+
+@receiver(post_save, sender=Employee)
+def sync_employee_email_to_user(sender, instance, created, **kwargs):
+    """
+    Ensure the linked User.email matches Employee.email when Employee is saved.
+    This keeps a single authoritative email value across both models.
+    """
+    # Email is now authoritative on the User model. Employee no longer stores
+    # an `email` field, so we intentionally don't sync Employee->User here.
+

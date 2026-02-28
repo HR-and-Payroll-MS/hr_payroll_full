@@ -14,17 +14,15 @@ from apps.policies.models import Policy
 INITIAL_POLICIES = {
     "attendancePolicy": {
         "shiftTimes": [
-            {"name": "Day Shift", "start": "09:00", "end": "17:00"},
+            {"name": "Day Shift", "start": "08:00", "end": "17:00"},
             {"name": "Night Shift", "start": "18:00", "end": "02:00"},
         ],
         "gracePeriod": {
-            "minutesAllowed": 10,
-            "lateAfter": 10,
+            "lateAfter": 30,
             "penaltyRule": "3 late arrivals per month = 1 warning",
         },
         "lateEarlyRules": {
             "earlyLeaveMinutes": 20,
-            "acceptableLateMinutes": 10,
         },
         "absentRules": {
             "absentAfterMinutes": 240,
@@ -132,10 +130,10 @@ INITIAL_POLICIES = {
 
 
 class Command(BaseCommand):
-    help = 'Seed initial policy data for organization 0'
+    help = 'Seed initial policy data for the single-organization setup (org=1)'
 
     def handle(self, *args, **options):
-        org_id = 0  # Default organization
+        org_id = 1  # Single organization id (use org 1 as default)
         created_count = 0
         updated_count = 0
 

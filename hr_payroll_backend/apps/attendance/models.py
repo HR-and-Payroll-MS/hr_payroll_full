@@ -3,6 +3,7 @@ Attendance models for HR & Payroll System.
 """
 from django.db import models
 from django.utils import timezone
+import logging
 from datetime import date, datetime, time, timedelta
 
 
@@ -33,64 +34,208 @@ class Attendance(models.Model):
         return f"{self.employee.fullname} - {self.date} ({self.status})"
 
     def save(self, *args, **kwargs):
+        logger = logging.getLogger('attendance')
         try:
-            # Auto-calculate status if clock_in is provided
-            if self.clock_in and self.status.upper() in ['ABSENT', 'PRESENT', 'LATE']:
+            # Holiday detection: if today's date matches holidayPolicy fixedHolidays,
+            # mark attendance as 'holiday' and skip present/late logic.
+            try:
+                from apps.policies.utils import get_policy
+                # Single-org default: get_policy defaults to organization_id=1
+                holiday_policy = get_policy('holidayPolicy') or {}
+                fixed = holiday_policy.get('fixedHolidays') or []
+                # fixedHolidays is expected as list of { 'date': 'YYYY-MM-DD', 'name': '...' }
+                for h in fixed:
+                    try:
+                        dstr = h.get('date')
+                        if dstr:
+                            parts = dstr.split('-')
+                            if len(parts) == 3:
+                                y, m, d = map(int, parts)
+                                if self.date == date(y, m, d):
+                                    self.status = 'holiday'
+                                    break
+                    except Exception:
+                        continue
+            except Exception:
+                # If policy lookup fails, continue without holiday behavior
+                holiday_policy = {}
+
+            # Auto-calculate status based on attendance policy (absent/late/present/half-day)
+            try:
+                # Resolve which Policy object is actually used (prefer org 1, then org 0)
+                # Use centralized helper which defaults to org 1
+                from apps.policies.utils import get_policy
+                policy = get_policy('attendancePolicy') or {}
+                policy_org_used = 1
+
+                # Debug via logger instead of a local file
                 try:
-                    from apps.policies.utils import get_policy
-                    # Fetching for Org 1 as default for employees
-                    policy = get_policy('attendancePolicy', organization_id=1)
-                    
-                    # Assume 9:00 AM as default start if not in policy
-                    shift_start_str = "09:00"
-                    if policy and 'shiftTimes' in policy and len(policy['shiftTimes']) > 0:
-                        shift_start_str = policy['shiftTimes'][0].get('start', "09:00")
-                    
-                    # Grace period
-                    grace_minutes = 0
-                    if policy and 'gracePeriod' in policy:
-                        try:
-                            # Handle potential string or integer from JSON
-                            grace_minutes = int(policy['gracePeriod'].get('minutesAllowed', 0))
-                        except (ValueError, TypeError):
-                            grace_minutes = 0
-                    
+                    logger.debug('Attendance policy used org=%s keys=%s emp=%s date=%s', policy_org_used, list(policy.keys()), getattr(self.employee, 'id', None), self.date)
+                except Exception:
+                    pass
+
+                # Default shift start/end
+                shift_start_str = "09:00"
+                shift_end_str = None
+                if policy and 'shiftTimes' in policy and len(policy['shiftTimes']) > 0:
+                    shift_start_str = policy['shiftTimes'][0].get('start', "09:00")
+                    shift_end_str = policy['shiftTimes'][0].get('end')
+
+                # Thresholds
+                late_after = None
+                if policy and 'gracePeriod' in policy:
+                    try:
+                        # New user-facing key: lateAfter (minutes)
+                        late_after = int(policy['gracePeriod'].get('lateAfter', policy['gracePeriod'].get('minutesAllowed', 0)))
+                    except (ValueError, TypeError):
+                        late_after = None
+
+                absent_after = None
+                no_clock_in_absent = False
+                if policy and 'absentRules' in policy:
+                    try:
+                        absent_after = int(policy['absentRules'].get('absentAfterMinutes'))
+                    except Exception:
+                        absent_after = None
+                    no_clock_in_absent = bool(policy['absentRules'].get('noClockInAbsent', False))
+
+                # Early-leave threshold
+                early_leave_minutes = None
+                if policy and 'lateEarlyRules' in policy:
+                    try:
+                        early_leave_minutes = int(policy['lateEarlyRules'].get('earlyLeaveMinutes', 0))
+                    except Exception:
+                        early_leave_minutes = None
+
+                # Determine shift duration in minutes
+                shift_duration_minutes = None
+                try:
+                    if shift_end_str:
+                        sh, sm = map(int, shift_start_str.split(':'))
+                        eh, em = map(int, shift_end_str.split(':'))
+                        start_min = sh * 60 + sm
+                        end_min = eh * 60 + em
+                        if end_min <= start_min:
+                            end_min += 24 * 60
+                        shift_duration_minutes = end_min - start_min
+                    elif self.employee and getattr(self.employee, 'work_schedule', None):
+                        ws = self.employee.work_schedule
+                        start_min = ws.start_time.hour * 60 + ws.start_time.minute
+                        end_min = ws.end_time.hour * 60 + ws.end_time.minute
+                        if end_min <= start_min:
+                            end_min += 24 * 60
+                        shift_duration_minutes = end_min - start_min
+                    else:
+                        shift_duration_minutes = 8 * 60
+                except Exception:
+                    shift_duration_minutes = 8 * 60
+
+                # If no clock-in recorded
+                if not self.clock_in:
+                    if no_clock_in_absent:
+                        self.status = 'absent'
+
+                else:
                     # Use local time for comparison with shift start (which is local)
                     clock_in_local = timezone.localtime(self.clock_in)
                     clock_in_time = clock_in_local.time()
-                    
-                    # Combine self.date and shift_start_str to get threshold
-                    h, m = map(int, shift_start_str.split(':'))
-                    
-                    # Add grace minutes to threshold
-                    total_minutes = h * 60 + m + grace_minutes
-                    grace_threshold_time = time(total_minutes // 60 % 24, total_minutes % 60)
 
-                    if clock_in_time > grace_threshold_time:
-                        self.status = 'LATE'
+                    # Combine self.date and shift_start_str to get thresholds
+                    h, m = map(int, shift_start_str.split(':'))
+
+                    # Absent threshold
+                    absent_threshold_time = None
+                    if absent_after is not None:
+                        total_absent = h * 60 + m + absent_after
+                        absent_threshold_time = time(total_absent // 60 % 24, total_absent % 60)
+
+                    # Late threshold (user-facing `lateAfter`)
+                    late_threshold_time = None
+                    if late_after is not None:
+                        total_late = h * 60 + m + late_after
+                        late_threshold_time = time(total_late // 60 % 24, total_late % 60)
+
+                    # Decide status priority: absent -> late -> present
+                    if absent_threshold_time and clock_in_time > absent_threshold_time:
+                        self.status = 'absent'
+                    elif late_threshold_time and clock_in_time > late_threshold_time:
+                        self.status = 'late'
                     else:
-                        self.status = 'PRESENT'
-                except Exception as e:
-                    print(f"Policy status calculation error: {e}")
-                    if not self.status or self.status.upper() == 'ABSENT':
-                        self.status = 'PRESENT'
+                        self.status = 'present'
+
+                    # Compute worked minutes if clock_out exists
+                    worked_minutes = None
+                    if self.clock_out:
+                        try:
+                            worked_delta = self.clock_out - self.clock_in
+                            worked_minutes = max(0, int(worked_delta.total_seconds() // 60))
+                        except Exception:
+                            worked_minutes = None
+
+                    # Half-day detection: if worked less than half of scheduled shift -> HALF-DAY
+                    if worked_minutes is not None and shift_duration_minutes is not None:
+                        if worked_minutes < (shift_duration_minutes / 2):
+                            self.status = 'half-day'
+
+                    # Early-leave: if clock_out before shift_end - early_leave_minutes => HALF-DAY
+                    if early_leave_minutes is not None and self.clock_out and shift_end_str:
+                        try:
+                            eh, em = map(int, shift_end_str.split(':'))
+                            leave_thresh_min = (eh * 60 + em) - early_leave_minutes
+                            leave_thresh_time = time((leave_thresh_min // 60) % 24, leave_thresh_min % 60)
+                            clock_out_local = timezone.localtime(self.clock_out).time()
+                            if clock_out_local < leave_thresh_time:
+                                self.status = 'half-day'
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.exception('Policy status calculation error')
+                if not self.status or str(self.status).lower() == 'absent':
+                    self.status = 'present'
             
             # --- Calculate Worked Hours ---
             if self.clock_in and self.clock_out:
                 # Get Scheduled Hours & Shift Start/End
                 scheduled_hours = 8.0 # Default fallback
                 shift_start_time = None
-                
-                if self.employee.work_schedule:
-                    ws = self.employee.work_schedule
-                    shift_start_time = ws.start_time
-                    # Calculate duration from TimeFields
-                    # Use dummy date for calculation
-                    dummy_date = date(2000, 1, 1) 
-                    start_dt = datetime.combine(dummy_date, ws.start_time)
-                    end_dt = datetime.combine(dummy_date, ws.end_time)
-                    ws_diff = end_dt - start_dt
-                    scheduled_hours = ws_diff.total_seconds() / 3600.0
+
+                # Prefer policy-defined shiftTimes (policy-first). If policy has shiftTimes use it,
+                # otherwise fall back to employee.work_schedule if present.
+                try:
+                    policy_shift_start = None
+                    policy_shift_end = None
+                    if policy and 'shiftTimes' in policy and len(policy['shiftTimes']) > 0:
+                        policy_shift_start = policy['shiftTimes'][0].get('start')
+                        policy_shift_end = policy['shiftTimes'][0].get('end')
+
+                    if policy_shift_start and policy_shift_end:
+                        # convert to time objects
+                        ph, pm = map(int, policy_shift_start.split(':'))
+                        eh, em = map(int, policy_shift_end.split(':'))
+                        shift_start_time = time(ph, pm)
+                        shift_end_time = time(eh, em)
+                        # compute scheduled_hours from these times
+                        dummy_date = date(2000, 1, 1)
+                        start_dt = datetime.combine(dummy_date, shift_start_time)
+                        end_dt = datetime.combine(dummy_date, shift_end_time)
+                        if end_dt <= start_dt:
+                            end_dt += timedelta(days=1)
+                        ws_diff = end_dt - start_dt
+                        scheduled_hours = ws_diff.total_seconds() / 3600.0
+                    elif self.employee.work_schedule:
+                        ws = self.employee.work_schedule
+                        shift_start_time = ws.start_time
+                        # Calculate duration from TimeFields
+                        # Use dummy date for calculation
+                        dummy_date = date(2000, 1, 1) 
+                        start_dt = datetime.combine(dummy_date, ws.start_time)
+                        end_dt = datetime.combine(dummy_date, ws.end_time)
+                        ws_diff = end_dt - start_dt
+                        scheduled_hours = ws_diff.total_seconds() / 3600.0
+                    else:
+                        scheduled_hours = 8.0
+                except Exception:
+                    scheduled_hours = 8.0
                 
                 # Determine Accountable Start Time
                 # If clock_in is BEFORE shift_start, we clamp to shift_start unless OT

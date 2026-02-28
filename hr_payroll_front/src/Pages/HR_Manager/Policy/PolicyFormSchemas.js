@@ -2,135 +2,133 @@
 export const policyFormSchemas = {
   attendancePolicy: {
     shiftTimes: {
-      name: { type: "text", label: "Shift Name", placeholder: "e.g. Day Shift" },
-      start: { type: "time", label: "Start Time" },
-      end: { type: "time", label: "End Time" },
+      name: {
+        type: 'text',
+        label: 'Shift Name',
+        placeholder: 'e.g. Day Shift',
+      },
+      start: { type: 'time', label: 'Start Time' },
+      end: { type: 'time', label: 'End Time' },
     },
     gracePeriod: {
-      minutesAllowed: { type: "number", label: "Minutes Allowed" },
-      lateAfter: { type: "number", label: "Late After (min)" },
-      penaltyRule: { type: "text", label: "Penalty Rule", placeholder: "e.g. 3 lates = 1 warning" },
+      lateAfter: { type: 'number', label: 'Late After (min)' },
+      penaltyRule: {
+        type: 'text',
+        label: 'Penalty Rule',
+        placeholder: 'e.g. 3 lates = 1 warning',
+      },
     },
     lateEarlyRules: {
-      earlyLeaveMinutes: { type: "number", label: "Early Leave Threshold (min)" },
-      acceptableLateMinutes: { type: "number", label: "Acceptable Late Minutes" },
+      earlyLeaveMinutes: {
+        type: 'number',
+        label: 'Early Leave Threshold (min)',
+      },
     },
     absentRules: {
-      absentAfterMinutes: { type: "number", label: "Absent After (min)" },
-      noClockInAbsent: { type: "boolean", label: "Mark Absent if no Clock-in?" },
+      absentAfterMinutes: { type: 'number', label: 'Absent After (min)' },
+      noClockInAbsent: {
+        type: 'boolean',
+        label: 'Mark Absent if no Clock-in?',
+      },
     },
     attendanceCorrection: {
-      approvalFlow: { type: "text", label: "Approval Step", placeholder: "e.g. manager" },
+      approvalFlow: {
+        type: 'text',
+        label: 'Approval Step',
+        placeholder: 'e.g. manager',
+      },
     },
   },
 
   leavePolicy: {
     leaveTypes: {
-      id: { type: "text", label: "ID (slug)", placeholder: "annual" },
-      name: { type: "text", label: "Leave Name", placeholder: "Annual Leave" },
-      paid: { type: "boolean", label: "Paid?" },
-      daysPerYear: { type: "number", label: "Days per Year", default: 0 },
+      id: { type: 'text', label: 'ID (slug)', placeholder: 'annual' },
+      name: { type: 'text', label: 'Leave Name', placeholder: 'Annual Leave' },
+      paid: { type: 'boolean', label: 'Paid?' },
+      daysPerYear: { type: 'number', label: 'Days per Year', default: 0 },
     },
     approvalWorkflow: {
-      annualLeave: { type: "text", label: "Approval Step", placeholder: "e.g. manager" },
-      sickLeave: { type: "text", label: "Approval Step", placeholder: "e.g. hr" },
-      maternityLeave: { type: "text", label: "Approval Step", placeholder: "e.g. hr" },
+      annualLeave: {
+        type: 'text',
+        label: 'Approval Step',
+        placeholder: 'e.g. manager',
+      },
+      sickLeave: {
+        type: 'text',
+        label: 'Approval Step',
+        placeholder: 'e.g. hr',
+      },
+      maternityLeave: {
+        type: 'text',
+        label: 'Approval Step',
+        placeholder: 'e.g. hr',
+      },
     },
   },
 
   holidayPolicy: {
     fixedHolidays: {
-      date: { type: "date", label: "Date" },
-      name: { type: "text", label: "Holiday Name" },
+      date: { type: 'date', label: 'Date' },
+      name: { type: 'text', label: 'Holiday Name' },
     },
     floatingHolidays: {
-      name: { type: "text", label: "Holiday Name" },
-      rule: { type: "text", label: "Rule" },
+      name: { type: 'text', label: 'Holiday Name' },
+      rule: { type: 'text', label: 'Rule' },
     },
     companyHolidays: {
-      date: { type: "date", label: "Date" },
-      name: { type: "text", label: "Holiday Name" },
+      date: { type: 'date', label: 'Date' },
+      name: { type: 'text', label: 'Holiday Name' },
     },
   },
 
   shiftPolicy: {
     shiftPatterns: {
-      id: { type: "number", label: "ID" },
-      name: { type: "text", label: "Pattern Name" },
-      type: { type: "dropdown", label: "Pattern Type", options: ["fixed", "rotational"] },
+      id: { type: 'number', label: 'ID' },
+      name: { type: 'text', label: 'Pattern Name' },
+      type: {
+        type: 'dropdown',
+        label: 'Pattern Type',
+        options: ['fixed', 'rotational'],
+      },
     },
   },
 
   disciplinaryPolicy: {
     escalation: {
-      steps: { type: "text", label: "Escalation Step", placeholder: "e.g. manager" },
-    },
-  },
-
-salaryStructurePolicy: {
-  allowances: {
-    name: { type: "text", label: "Allowance Name" },
-    value: { type: "number", label: "Amount" },
-  },
-  deductions: {
-    taxBracket: {
-      min: { type: "number", label: "Min" },
-      max: { type: "number", label: "Max" },
-      rate: { type: "number", label: "Rate (%)" },
-      appliedfor: {
-        type: "dropdown",
-        label: "Applied For",
-        options: [
-          "All",
-          "Department 1",
-          "Department 2",
-          "HR manager",
-          "Department managers",
-          "Payroll officers",
-        ],
+      steps: {
+        type: 'text',
+        label: 'Escalation Step',
+        placeholder: 'e.g. manager',
       },
     },
   },
-},
 
+  salaryStructurePolicy: {
+    allowances: {
+      name: { type: 'text', label: 'Allowance Name' },
+      value: { type: 'number', label: 'Amount' },
+    },
+    deductions: {
+      taxBracket: {
+        min: { type: 'number', label: 'Min' },
+        max: { type: 'number', label: 'Max' },
+        rate: { type: 'number', label: 'Rate (%)' },
+        appliedfor: {
+          type: 'dropdown',
+          label: 'Applied For',
+          options: [
+            'All',
+            'Department 1',
+            'Department 2',
+            'HR manager',
+            'Department managers',
+            'Payroll officers',
+          ],
+        },
+      },
+    },
+  },
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // // field types: text|number|time|date|dropdown|textarea|boolean
 // export const policyFormSchemas = {

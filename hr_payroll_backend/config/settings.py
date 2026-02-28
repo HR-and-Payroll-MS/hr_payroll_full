@@ -81,15 +81,19 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database - SQLite for development
+SQLITE_DB_NAME = os.getenv('SQLITE_DB_NAME', 'data/db.sqlite3')
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / SQLITE_DB_NAME,
     }
 }
 
 # Custom User Model
 AUTH_USER_MODEL = 'users.User'
+
+# Test runner (reuse existing test DB to avoid interactive prompts in Docker)
+TEST_RUNNER = 'config.test_runner.KeepDbTestRunner'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

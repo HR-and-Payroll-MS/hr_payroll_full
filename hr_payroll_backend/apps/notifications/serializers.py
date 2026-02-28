@@ -24,8 +24,8 @@ class NotificationSerializer(serializers.ModelSerializer):
     def get_sender_role(self, obj):
         if obj.sender and hasattr(obj.sender, 'user_account') and obj.sender.user_account:
              groups = obj.sender.user_account.groups.values_list('name', flat=True)
-             if 'HR Manager' in groups: return 'HR Manager'
              if 'Manager' in groups: return 'Manager'
+             if 'HR Manager' in groups: return 'Manager'
              if 'Line Manager' in groups: return 'Line Manager'
              if 'Payroll' in groups: return 'Payroll'
              if 'Employee' in groups: return 'Employee'

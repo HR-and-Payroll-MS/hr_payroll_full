@@ -2,7 +2,7 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { useTheme } from '../Context/ThemeContext';
-import KeyboardShortcuts from '../Components/KeyboardShrotCuts';
+import KeyboardShortcuts from '../Components/KeyboardShrotcuts';
 export default function MainLayout() {
   const { theme } = useTheme();
   return (

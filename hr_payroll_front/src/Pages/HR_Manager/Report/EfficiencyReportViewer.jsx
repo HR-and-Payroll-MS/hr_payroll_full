@@ -14,10 +14,10 @@ export default function EfficiencyReportViewer({ report, fullReport, onBack, hid
   const { title, summary, performanceMetrics, feedback, totalEfficiency, evaluator_name } = report;
 
   return (
-    <div className="mx-auto h-full p-6 bg-white dark:bg-slate-900 rounded border-slate-200 dark:border-slate-800 transition-colors animate-in fade-in slide-in-from-bottom-4 duration-500 overflow-y-auto">
+    <div className="mx-auto h-full relative  w-full p-6 bg-white dark:bg-slate-900 rounded border-slate-200 dark:border-slate-800 transition-colors animate-in fade-in slide-in-from-bottom-4 duration-500 hover-bar overflow-y-auto">
       
       {/* HEADER & PROFILE */}
-      <div className="mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="mb-8 pb-4 sticky z-20 bg-white dark:bg-slate-900 top-0 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
                 <button onClick={onBack} className="text-slate-400 hover:text-emerald-500 transition-colors flex items-center gap-1 group">

@@ -148,7 +148,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         job_title = getattr(employee, 'position', '') or ''
         print(f"DEBUG: Role detection - user {user.username}, position: {job_title}")
         
-        # 3. Check if HR Manager
+        # 3. Check if Manager
         if job_title and ('HR' in job_title.upper() or 'HUMAN RESOURCES' in job_title.upper()):
             print(f"DEBUG: Role detection - user {user.username} identified as HR")
             return 'HR'
@@ -261,7 +261,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
                 })
             elif approver_role == 'HR':
                 return Response(
-                    {'error': 'Pending requests must be approved by the Department Manager first.'},
+                    {'error': 'Pending requests must be approved by the Line Manager first.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
             else:

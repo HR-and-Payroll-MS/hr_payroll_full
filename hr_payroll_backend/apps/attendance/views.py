@@ -10,7 +10,7 @@ from django.db.models import Count, Q
 from datetime import date, datetime
 from .models import Attendance, OvertimeRequest, WorkSchedule
 from .serializers import AttendanceSerializer, AttendanceTodaySerializer, DepartmentAttendanceSerializer, OvertimeRequestSerializer, WorkScheduleSerializer
-from apps.core.permissions import IsHRManagerOrReadOnly, IsHRManager
+from apps.core.permissions import IsHRManagerOrReadOnly, IsHRManager, IsManagerOrReadOnly, IsManager
 from apps.employees.models import Employee
 from apps.notifications.models import Notification
 
@@ -20,7 +20,7 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
     Includes capability to bulk assign schedules.
     """
     serializer_class = WorkScheduleSerializer
-    permission_classes = [IsAuthenticated, IsHRManagerOrReadOnly]
+    permission_classes = [IsAuthenticated, IsManagerOrReadOnly]
     queryset = WorkSchedule.objects.all()
 
     def get_queryset(self):
@@ -30,7 +30,7 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return queryset.none()
             
-        if IsHRManager().has_permission(self.request, self):
+        if IsManager().has_permission(self.request, self):
             return queryset
 
         # Regular employees and Line Managers see ONLY their assigned schedule
@@ -39,6 +39,38 @@ class WorkScheduleViewSet(viewsets.ModelViewSet):
                 return queryset.filter(id=user.employee.work_schedule_id)
             
         return queryset.none()
+
+    def create(self, request, *args, **kwargs):
+        from rest_framework import status
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            # Log validation error for debugging
+            try:
+                import logging
+                logging.getLogger('attendance').warning('WorkSchedule create validation failed: %s', serializer.errors)
+            except Exception:
+                pass
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def update(self, request, *args, **kwargs):
+        from rest_framework import status
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if not serializer.is_valid():
+            try:
+                import logging
+                logging.getLogger('attendance').warning('WorkSchedule update validation failed: %s', serializer.errors)
+            except Exception:
+                pass
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        self.perform_update(serializer)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'], url_path='assign-bulk')
     def assign_bulk(self, request, pk=None):
@@ -410,8 +442,9 @@ class ManagerDepartmentAttendanceView(APIView):
         from apps.employees.models import Employee
         from apps.departments.models import Department
         
-        user_groups = list(request.user.groups.values_list('name', flat=True))
-        is_dm = 'Department Manager' in user_groups
+        # Normalize group names to uppercase and treat Line/Department Manager as manager roles
+        user_groups = [g.upper() for g in request.user.groups.values_list('name', flat=True)]
+        is_dm = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
         
         managed_depts = Department.objects.filter(manager=request.user.employee)
         
@@ -552,7 +585,9 @@ class OvertimeRequestViewSet(viewsets.ModelViewSet):
             
             # Use same logic as employee visibility to find allowed departments
             user_groups = list(self.request.user.groups.values_list('name', flat=True))
-            is_dm = 'Department Manager' in user_groups
+            # Normalize group names and treat Line/Department Manager as manager roles
+            user_groups = [g.upper() for g in self.request.user.groups.values_list('name', flat=True)]
+            is_dm = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
             is_hr_admin = any(role in user_groups for role in ['Admin', 'Payroll'])
             
             managed_depts = Department.objects.filter(manager=manager)

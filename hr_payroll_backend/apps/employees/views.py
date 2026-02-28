@@ -30,6 +30,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     - DELETE /employees/{id}/ - Delete employee
     """
     queryset = Employee.objects.all()
+    # Disable server-side pagination for this endpoint so callers get the full list
+    pagination_class = None
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
     
@@ -64,34 +66,56 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         try:
             queryset = Employee.objects.select_related('department', 'line_manager').all()
             user = self.request.user
-            
-            if not user.is_authenticated:
+
+            # Quick guard: unauthenticated → none
+            if not user or not user.is_authenticated:
                 return Employee.objects.none()
-                
-            if IsHRManager().has_permission(self.request, self):
+
+            # Log who is requesting for debugging
+            try:
+                user_groups = [g.name.upper() for g in user.groups.all()]
+            except Exception:
+                user_groups = []
+
+            # Define HR-like groups (same as permissions)
+            hr_role_groups = {'MANAGER', 'ADMIN', 'PAYROLL', 'HUMAN RESOURCES'}
+
+            # If superuser or in HR-like groups → full queryset
+            if getattr(user, 'is_superuser', False) or any(role in user_groups for role in hr_role_groups):
                 return queryset
 
-            # Line Manager Scoping
-            user_groups = [g.name.upper() for g in user.groups.all()]
-            is_line_manager = 'LINE MANAGER' in user_groups or 'DEPARTMENT MANAGER' in user_groups
+            # Line/Department Manager scoping
+            is_line_manager = (
+                'LINE MANAGER' in user_groups
+                or 'MANAGER' in user_groups
+                or 'DEPARTMENT MANAGER' in user_groups
+            )
             if is_line_manager:
                 from apps.departments.models import Department
-                # Use getattr to be safe if employee is missing
-                employee = getattr(user, 'employee', None)
+                try:
+                    employee = getattr(user, 'employee', None)
+                except Exception:
+                    # If reverse relation access triggers DB errors, return none
+                    return Employee.objects.none()
+
                 if employee:
                     managed_dept_ids = list(Department.objects.filter(manager=employee).values_list('id', flat=True))
-                    
-                    if not managed_dept_ids and employee.department_id:
+                    if not managed_dept_ids and getattr(employee, 'department_id', None):
                         managed_dept_ids = [employee.department_id]
-                    
                     if managed_dept_ids:
                         return queryset.filter(department_id__in=managed_dept_ids)
+                    # Always allow manager to see their own profile
+                    return queryset.filter(id=employee.id)
                 return queryset.none()
 
-            # Regular Employee
-            if hasattr(user, 'employee') and user.employee:
-                return queryset.filter(id=user.employee.id)
-            return queryset.none()
+            # Regular Employee: only their own record
+            try:
+                emp = getattr(user, 'employee', None)
+            except Exception:
+                emp = None
+            if emp:
+                return queryset.filter(id=emp.id)
+            return Employee.objects.none()
             # --- Standard Filters ---
             # Filter by department
             department = self.request.query_params.get('department')
@@ -288,7 +312,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='promote-manager')
     def promote_to_manager(self, request, pk=None):
         """
-        Promote employee to Department Manager.
+        Promote employee to Line Manager.
         POST /employees/{id}/promote-manager/
         Body: { "department_id": <id> }  (Optional, defaults to current department)
         """
@@ -315,8 +339,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             employee.department = target_department
             employee.save()
             
-        # 2. Update Job Title (Signal will handle group changes: Employee -> Manager/Line Manager)
-        employee.job_title = 'Department Manager'
+        # 2. Update Job Title (Signal will handle group changes)
+        employee.job_title = 'Line Manager'
         employee.save()
         
         # 3. Set as Manager of the Department
@@ -328,8 +352,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         Notification.objects.create(
             recipient=employee,
             sender=request.user.employee if hasattr(request.user, 'employee') else None,
-            title="Promotion: Department Manager",
-            message=f"Congratulations! You have been promoted to Manager of the {target_department.name} department.",
+            title="Promotion: Line Manager",
+            message=f"Congratulations! You have been promoted to Line Manager of the {target_department.name} department.",
             notification_type='promotion',
             link="/my-profile"
         )
@@ -342,7 +366,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='demote-manager')
     def demote_from_manager(self, request, pk=None):
         """
-        Demote employee from Department Manager role.
+        Demote employee from Line Manager role.
         POST /employees/{id}/demote-manager/
         """
         from django.contrib.auth.models import Group
@@ -364,8 +388,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         Notification.objects.create(
             recipient=employee,
             sender=request.user.employee if hasattr(request.user, 'employee') else None,
-            title="Position Update: Manager Role Removed",
-            message=f"Your role as Department Manager has been removed.",
+            title="Position Update: Line Manager Role Removed",
+            message=f"Your role as Line Manager has been removed.",
             notification_type='warning',
             link="/my-profile"
         )
@@ -374,6 +398,95 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             'message': f'Successfully demoted {employee.fullname} from manager role',
             'removed_from_departments': dept_names
         }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], url_path='promote-hr')
+    def promote_to_hr(self, request, pk=None):
+        """
+        Promote employee to Manager.
+        POST /employees/{id}/promote-hr/
+        """
+        # Only Manager / Admin should be able to call this
+        if not request.user.is_staff and not IsHRManager().has_permission(request, self):
+            return Response({'error': 'Only HR can perform this action'}, status=403)
+
+        try:
+            employee = Employee.objects.get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=404)
+
+        employee.job_title = 'Manager'
+        employee.save()
+
+        from apps.notifications.models import Notification
+        Notification.objects.create(
+            recipient=employee,
+            sender=request.user.employee if hasattr(request.user, 'employee') else None,
+            title='Promotion: Manager',
+            message=f'You have been promoted to Manager.',
+            notification_type='promotion',
+            link='/my-profile'
+        )
+
+        return Response({'message': f'Successfully promoted {employee.fullname} to Manager'}, status=200)
+
+    @action(detail=True, methods=['post'], url_path='promote-payroll')
+    def promote_to_payroll(self, request, pk=None):
+        """
+        Promote employee to Payroll Officer.
+        POST /employees/{id}/promote-payroll/
+        """
+        # Allow HR managers or users in payroll-related groups
+        if not request.user.is_staff and not (IsHRManager().has_permission(request, self) or request.user.groups.filter(name__icontains='payroll').exists()):
+            return Response({'error': 'Only HR/Payroll admin can perform this action'}, status=403)
+
+        try:
+            employee = Employee.objects.get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=404)
+
+        employee.job_title = 'Payroll Officer'
+        employee.save()
+
+        from apps.notifications.models import Notification
+        Notification.objects.create(
+            recipient=employee,
+            sender=request.user.employee if hasattr(request.user, 'employee') else None,
+            title='Promotion: Payroll Officer',
+            message=f'You have been promoted to Payroll Officer.',
+            notification_type='promotion',
+            link='/my-profile'
+        )
+
+        return Response({'message': f'Successfully promoted {employee.fullname} to Payroll Officer'}, status=200)
+
+    @action(detail=True, methods=['post'], url_path='demote-role')
+    def demote_role(self, request, pk=None):
+        """
+        Generic demote endpoint to remove HR/Payroll roles (set to Employee).
+        POST /employees/{id}/demote-role/
+        """
+        if not request.user.is_staff and not IsHRManager().has_permission(request, self):
+            return Response({'error': 'Only HR can perform this action'}, status=403)
+
+        try:
+            employee = Employee.objects.get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=404)
+
+        employee.job_title = 'Employee'
+        employee.save()
+
+        from apps.notifications.models import Notification
+        Notification.objects.create(
+            recipient=employee,
+            sender=request.user.employee if hasattr(request.user, 'employee') else None,
+            title='Role Update',
+            message=f'Your HR/Payroll privileges have been removed.',
+            notification_type='warning',
+            link='/my-profile'
+        )
+
+        return Response({'message': f'Successfully removed elevated roles from {employee.fullname}'}, status=200)
 
     @action(detail=False, methods=['get', 'put'], url_path='org-chart')
     def org_chart(self, request):

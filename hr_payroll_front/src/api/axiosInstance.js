@@ -1,6 +1,28 @@
 import axios from 'axios';
 
-export const BASE_URL = 'http://localhost:8001/api/v1';
+const isLocalUrl = (url = '') => /https?:\/\/(localhost|127\.0\.0\.1)/i.test(url);
+const isDeployedHost =
+  typeof window !== 'undefined' &&
+  !['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+const ensureApiV1 = (url) => {
+  if (!url) return '';
+  const clean = url.trim().replace(/\/$/, '');
+  if (/\/api\/v\d+$/i.test(clean)) return clean;
+  return `${clean}/api/v1`;
+};
+
+const envApiUrl =
+  import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE || '';
+const envBaseUrl = import.meta.env.VITE_BASE_URL || '';
+
+const safeEnvApiUrl = isDeployedHost && isLocalUrl(envApiUrl) ? '' : envApiUrl;
+const safeEnvBaseUrl = isDeployedHost && isLocalUrl(envBaseUrl) ? '' : envBaseUrl;
+
+export const BASE_URL =
+  ensureApiV1(safeEnvApiUrl) ||
+  ensureApiV1(safeEnvBaseUrl) ||
+  'https://hr-payroll-full.onrender.com/api/v1';
 // export const BASE_URL = 'http://172.16.27.124:3000/api/v1';
 
 export const axiosPublic = axios.create({
@@ -37,7 +59,7 @@ export function createAxiosPrivate({ getAccessToken, onRefresh, onLogout }) {
       }
       return config;
     },
-    (error) => Promise.reject(error)
+    (error) => Promise.reject(error),
   );
 
   instance.interceptors.response.use(
@@ -45,7 +67,10 @@ export function createAxiosPrivate({ getAccessToken, onRefresh, onLogout }) {
     async (error) => {
       const originalRequest = error?.config;
 
-      if (!originalRequest || originalRequest.url.includes('/auth/djoser/jwt/refresh/')) {
+      if (
+        !originalRequest ||
+        originalRequest.url.includes('/auth/djoser/jwt/refresh/')
+      ) {
         return Promise.reject(error);
       }
 
@@ -69,14 +94,16 @@ export function createAxiosPrivate({ getAccessToken, onRefresh, onLogout }) {
           onRefresh()
             .then((newAccess) => {
               if (newAccess) {
-                console.log('Token refreshed successfully. Retrying queued requests.');
-                
+                console.log(
+                  'Token refreshed successfully. Retrying queued requests.',
+                );
+
                 originalRequest.headers.Authorization = `Bearer ${newAccess}`;
-                
+
                 processQueue(null, newAccess);
                 resolve(instance(originalRequest));
               } else {
-                throw new Error("Refresh failed: No token returned.");
+                throw new Error('Refresh failed: No token returned.');
               }
             })
             .catch((refreshError) => {
@@ -92,112 +119,13 @@ export function createAxiosPrivate({ getAccessToken, onRefresh, onLogout }) {
       }
 
       return Promise.reject(error);
-    }
+    },
   );
 
-  instance._ejectInterceptors = () => {
-  };
+  instance._ejectInterceptors = () => {};
 
   return instance;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import axios from 'axios';
 // export const BASE_URL = 'http://localhost:3000/api/v1';

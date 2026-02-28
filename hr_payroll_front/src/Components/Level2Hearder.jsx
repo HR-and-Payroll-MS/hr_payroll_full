@@ -11,6 +11,7 @@ export function SearchStatus({
   employeeClicked,
   showSort = false,
   onSortChange,
+  onViewChange,
 }) {
   const handleFilter = (item, key) => {
     if (!item) return;
@@ -31,10 +32,10 @@ export function SearchStatus({
     // onFiltersChange({ employee: employee.name });
   };
 
-  // const viewOptions = [
-  //   { content: 'Card View', svg: 'Grip' },
-  //   { content: 'Tabular View', svg: 'Grid3x3' },
-  // ];
+  const viewOptions = [
+    { content: 'Card View', svg: 'Grip' },
+    { content: 'Tabular View', svg: 'Grid3x3' },
+  ];
   // const depOptions = [
   //   { content: 'Department', svg: null, placeholder: true },
   //   { content: 'Human Resource', svg: null },
@@ -121,6 +122,25 @@ export function SearchStatus({
             options={sortOptions}
             text="text-xs font-semibold"
             placeholder="Sort By"
+            border="border gap-1 border-gray-100"
+          />
+        )}
+        {viewOptions && (
+          <Dropdown
+            onChange={(val) => {
+              const v = val?.content || val;
+              if (onViewChange) {
+                if (v === 'Card View') onViewChange('grid');
+                else if (v === 'Tabular View') onViewChange('table');
+              } else {
+                // fallback to sort handler if parent doesn't accept view changes
+                handleSortChange(v);
+              }
+            }}
+            options={viewOptions}
+            text="text-xs font-semibold"
+            placeholder="View"
+            showIcons={true}
             border="border gap-1 border-gray-100"
           />
         )}

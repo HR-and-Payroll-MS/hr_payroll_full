@@ -13,7 +13,9 @@ import { getLocalData } from '../../Hooks/useLocalStorage';
 export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
   const navigate = useNavigate();
   const auth = useAuth();
-  const currentRole = getLocalData("role") || auth?.user?.role || role || 'EMPLOYEE';
+  // Prefer role from AuthContext, fallback to localStorage or prop
+  const currentRole =
+    auth?.user?.role || getLocalData('role') || role || 'EMPLOYEE';
   console.log('NotificationCenterPage currentRole:', currentRole);
   const {
     items,
@@ -42,7 +44,19 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
 
   const normalizeLink = (link, n) => {
     if (!link || typeof link !== 'string') return null;
+    const originalLink = link;
     let path = link.trim();
+    const logAndReturn = (mapped) => {
+      try {
+        console.log('normalizeLink mapped:', {
+          original: originalLink,
+          mapped,
+        });
+      } catch (e) {
+        /* ignore logging errors */
+      }
+      return mapped;
+    };
     // Strip query/hash
     path = path.split('?')[0].split('#')[0];
     // Remove trailing numeric/hex-like ID segments to avoid 404
@@ -73,9 +87,18 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       if (!rl) return 'Employee';
 
       if (rl.includes('payroll')) return 'Payroll';
-      if (rl.includes('department') || rl.includes('line manager') || rl.includes('department_manager'))
+      if (
+        rl.includes('department') ||
+        rl.includes('line manager') ||
+        rl.includes('department_manager')
+      )
         return 'department_manager';
-      if (rl.includes('hr') || rl.includes('hr_manager') || rl === 'manager' || rl === 'hrmanager')
+      if (
+        rl.includes('hr') ||
+        rl.includes('hr_manager') ||
+        rl === 'manager' ||
+        rl === 'hrmanager'
+      )
         return 'hr_dashboard';
       if (rl.includes('admin')) return 'admin_dashboard';
       if (rl.includes('employee')) return 'Employee';
@@ -94,7 +117,39 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       cat.includes('policy')
     ) {
       const base = getRoleBase(currentRole);
-      return `/${base}/HelpCenter/policies`;
+      return logAndReturn(`/${base}/HelpCenter/policies`);
+    }
+
+    // Normalize any incoming Employee/... setting WorkSchedule links to the role-specific path
+    try {
+      const lowPath = path.toLowerCase();
+      if (
+        lowPath.includes('/setting/workschedule') ||
+        lowPath.endsWith('/workschedule')
+      ) {
+        const localRole = getLocalData('role') || currentRole;
+        const rl = String(localRole || '').toLowerCase();
+        const roleBase = (() => {
+          if (
+            rl.includes('line manager') ||
+            (rl.includes('line') && rl.includes('manager'))
+          )
+            return 'department_manager';
+          if (
+            rl.includes('manager') ||
+            rl.includes('hr') ||
+            rl.includes('hr manager')
+          )
+            return 'hr_dashboard';
+          if (rl.includes('payroll')) return 'Payroll';
+          if (rl.includes('admin')) return 'admin_dashboard';
+          if (rl.includes('employee')) return 'Employee';
+          return 'Employee';
+        })();
+        return logAndReturn(`/${roleBase}/setting/WorkSchedule`);
+      }
+    } catch (e) {
+      /* ignore normalize errors */
     }
 
     // Handle payroll approval/rollback notifications: always go to Payroll generate page
@@ -107,15 +162,38 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       ' ' +
       path
     ).toLowerCase();
-    if (
-      text.includes('payroll') &&
-      (text.includes('approved') ||
+    if (text.includes('payroll')) {
+      // If it's a submission event, HR/Manager should see the payroll report
+      if (text.includes('submitted') || text.includes('submission')) {
+        const base = getRoleBase(currentRole);
+        return logAndReturn(`/${base}/Payroll_report`);
+      }
+
+      // Other payroll lifecycle notifications go to the generate page by default
+      if (
+        text.includes('approved') ||
         text.includes('approval') ||
         text.includes('rolled back') ||
         text.includes('rollback') ||
-        text.includes('reverted'))
+        text.includes('reverted')
+      ) {
+        return logAndReturn('/Payroll/generate_payroll');
+      }
+    }
+
+    // If notification explicitly mentions Work Schedule assignment, route to Settings WorkSchedule.
+    // Managers/HR/Admins go to the settings page; regular employees go to their Employee setting view.
+    const lowerTitle = (n?.title || '').toLowerCase();
+    const lowerMsg = (n?.message || '').toLowerCase();
+    if (
+      lowerTitle.includes('work schedule') ||
+      lowerMsg.includes('work schedule')
     ) {
-      return '/Payroll/generate_payroll';
+      const rl = (currentRole || '').toLowerCase();
+      if (rl.includes('manager') || rl.includes('hr') || rl.includes('admin')) {
+        return logAndReturn('/setting/WorkSchedule');
+      }
+      return logAndReturn('/Employee/setting/WorkSchedule');
     }
 
     // Map generic my-payslips or payslip-related notifications to the appropriate
@@ -125,18 +203,21 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       path.toLowerCase() === 'my-payslips' ||
       cat.includes('payslip') ||
       cat.includes('payslips') ||
-      (cat.includes('payroll') && path.replace(/\/+$/, '').toLowerCase().endsWith('payslips'))
+      (cat.includes('payroll') &&
+        path.replace(/\/+$/, '').toLowerCase().endsWith('payslips'))
     ) {
       const base = getRoleBase(currentRole);
-      return `/${base}/my-payslips`;
+      return logAndReturn(`/${base}/my-payslips`);
     }
 
     if (cat.includes('tax')) return null; // stay in detail for tax code notifications
     if (/^\/leaves(\/|$)/i.test(path)) {
       const roleNorm = (currentRole || '').toLowerCase();
       if (roleNorm.includes('employee')) return '/Employee/Request';
-      if (roleNorm.includes('line manager')) return '/department_manager/Approve_Reject';
-      if (roleNorm.includes('manager') || roleNorm.includes('hr')) return '/hr_dashboard/Approve_Reject';
+      if (roleNorm.includes('line manager'))
+        return '/department_manager/Approve_Reject';
+      if (roleNorm.includes('manager') || roleNorm.includes('hr'))
+        return '/hr_dashboard/Approve_Reject';
       return '/Employee/Request';
     }
 
@@ -146,7 +227,7 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       if (cat.includes('payroll')) return '/Employee/my-payslips';
     }
 
-    return path;
+    return logAndReturn(path);
   };
   const types = [
     { content: 'all' },
@@ -161,10 +242,13 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
       .filter(visible)
       .filter((n) => (filter === 'all' ? true : n.category === filter))
       .filter((n) =>
-        q ? (n.title + n.message).toLowerCase().includes(q.toLowerCase()) : true
+        q
+          ? (n.title + n.message).toLowerCase().includes(q.toLowerCase())
+          : true,
       )
       .sort((a, b) => {
-        if (tab === 'sent') return new Date(b.createdAt) - new Date(a.createdAt);
+        if (tab === 'sent')
+          return new Date(b.createdAt) - new Date(a.createdAt);
         return a.unread === b.unread ? 0 : a.unread ? -1 : 1;
       });
   }, [items, sentItems, filter, q, role, tab]);
@@ -270,7 +354,50 @@ export default function NotificationCenterPage({ role = 'EMPLOYEE' }) {
                     }
                     if (tab === 'received') markRead(n.id);
                     if (target) {
-                      navigate(target);
+                      // Determine role from localStorage first (explicit request), then AuthContext
+                      const localRole = getLocalData('role') || currentRole;
+                      const rl = String(localRole || '').toLowerCase();
+                      const getRoleBaseFrom = (rstr) => {
+                        const s = String(rstr || '').toLowerCase();
+                        // Line Manager should map to department_manager first
+                        if (
+                          s.includes('line manager') ||
+                          (s.includes('line') && s.includes('manager'))
+                        )
+                          return 'department_manager';
+                        // Manager or HR roles map to hr_dashboard
+                        if (
+                          s.includes('manager') ||
+                          s.includes('hr') ||
+                          s.includes('hr manager') ||
+                          s === 'manager'
+                        )
+                          return 'hr_dashboard';
+                        if (s.includes('payroll')) return 'Payroll';
+                        if (s.includes('admin')) return 'admin_dashboard';
+                        if (s.includes('employee')) return 'Employee';
+                        return 'Employee';
+                      };
+                      const roleBase = getRoleBaseFrom(rl);
+
+                      // Debug: Show navigation details
+                      console.log('Notification click debug:', {
+                        rawLink,
+                        target,
+                        localRole,
+                        roleBase,
+                      });
+
+                      if (
+                        target.toLowerCase().startsWith('/setting/workschedule')
+                      ) {
+                        const finalPath = `/${roleBase}/setting/WorkSchedule`;
+                        console.log('Navigating to (finalPath):', finalPath);
+                        navigate(finalPath);
+                      } else {
+                        console.log('Navigating to (target):', target);
+                        navigate(target);
+                      }
                     } else {
                       setSelected({
                         ...n,

@@ -46,13 +46,13 @@ def test_payroll_system():
     print(f"   Users: {users.count()}")
     
     # Get or create a user for testing
-    hr_user = User.objects.filter(groups__name='HR Manager').first()
+    hr_user = User.objects.filter(groups__name='Manager').first()
     if not hr_user:
         hr_user = User.objects.filter(is_superuser=True).first()
-    print(f"   HR User: {hr_user}")
+    print(f"   Manager User: {hr_user}")
     
     hr_employee = hr_user.employee if hr_user and hasattr(hr_user, 'employee') else None
-    print(f"   HR Employee: {hr_employee}")
+    print(f"   Manager Employee: {hr_employee}")
     
     # 2. Check tax codes
     print_section("2. Checking Tax Configuration")

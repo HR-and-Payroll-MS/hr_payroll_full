@@ -1,29 +1,31 @@
-import React, { useEffect, useState } from "react";
-import { useParams, useLocation, useNavigate } from "react-router-dom";
-import useAuth from "../../../Context/AuthContext";
-import StepHeader from "../../../Components/forms/StepHeader";
-import ThreeDots from "../../../animations/ThreeDots";
-import Icon from "../../../Components/Icon";
-import Header from "../../../Components/Header";
-import Modal from "../../../Components/Modal"; // Ensure you have this component
+import React, { useEffect, useState } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import useAuth from '../../../Context/AuthContext';
+import StepHeader from '../../../Components/forms/StepHeader';
+import ThreeDots from '../../../animations/ThreeDots';
+import Icon from '../../../Components/Icon';
+import Header from '../../../Components/Header';
+import Modal from '../../../Components/Modal'; // Ensure you have this component
+import { useToast } from '../../../Components/Toasts/ToastProvider';
 
-import useData from "../../../Context/DataContextProvider";
+import useData from '../../../Context/DataContextProvider';
 
 const ViewEmployee = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { axiosPrivate } = useAuth();
   const { departments } = useData(); // Use Context
-  const steps = ["General", "Job", "Payroll", "Documents"];
+  const steps = ['General', 'Job', 'Payroll', 'Documents'];
   const [currentStep, setCurrentStep] = useState(0);
   const [employeeData, setEmployeeData] = useState(null);
   // Remove local departments state
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  
+  const [error, setError] = useState('');
+  const toast = useToast();
+
   // Promotion State
   const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
-  const [promoteDeptId, setPromoteDeptId] = useState("");
+  const [promoteDeptId, setPromoteDeptId] = useState('');
 
   const [editMode, setEditMode] = useState({
     general: false,
@@ -45,7 +47,7 @@ const ViewEmployee = () => {
         setEmployeeData(res.data);
       } catch (err) {
         console.error(err);
-        setError("Failed to fetch employee details.");
+        setError('Failed to fetch employee details.');
       } finally {
         setLoading(false);
       }
@@ -68,100 +70,134 @@ const ViewEmployee = () => {
 
   const handleSave = async (section) => {
     try {
-        const payload = { ...employeeData };
-        await axiosPrivate.put(`/employees/${id}/`, payload);
-        alert("Updated successfully!");
-        setEditMode((prev) => ({ ...prev, [section]: false }));
-        // Refresh data
-        const res = await axiosPrivate.get(`/employees/${id}/`);
-        setEmployeeData(res.data);
+      const payload = { ...employeeData };
+      await axiosPrivate.put(`/employees/${id}/`, payload);
+      toast.show({
+        type: 'success',
+        message: 'Employee updated successfully.',
+      });
+      setEditMode((prev) => ({ ...prev, [section]: false }));
+      // Refresh data
+      const res = await axiosPrivate.get(`/employees/${id}/`);
+      setEmployeeData(res.data);
     } catch (err) {
-        console.error(err);
-        alert("Failed to update: " + (err.response?.data?.detail || "Unknown error"));
+      console.error(err);
+      toast.show({
+        type: 'error',
+        message:
+          'Failed to update: ' +
+          (err.response?.data?.detail || 'Unknown error'),
+      });
     }
   };
 
   const handleCancel = (section) => {
     setEditMode((prev) => ({ ...prev, [section]: false }));
-    window.location.reload(); 
+    window.location.reload();
   };
 
   const handlePromote = async () => {
-      if (!promoteDeptId) {
-          alert("Please select a department to manage.");
-          return;
-      }
-      try {
-          await axiosPrivate.post(`/employees/${id}/promote-manager/`, {
-              department_id: promoteDeptId
-          });
-          alert("Employee promoted to Department Manager successfully!");
-          setIsPromoteModalOpen(false);
-          const res = await axiosPrivate.get(`/employees/${id}/`);
-          setEmployeeData(res.data);
-      } catch (err) {
-          console.error(err);
-          alert("Failed to promote: " + (err.response?.data?.error || err.message));
-      }
+    if (!promoteDeptId) {
+      alert('Please select a department to manage.');
+      return;
+    }
+    try {
+      await axiosPrivate.post(`/employees/${id}/promote-manager/`, {
+        department_id: promoteDeptId,
+      });
+      toast.show({
+        type: 'success',
+        message: 'Employee promoted to Department Manager successfully!',
+      });
+      setIsPromoteModalOpen(false);
+      const res = await axiosPrivate.get(`/employees/${id}/`);
+      setEmployeeData(res.data);
+    } catch (err) {
+      console.error(err);
+      toast.show({
+        type: 'error',
+        message:
+          'Failed to promote: ' + (err.response?.data?.error || err.message),
+      });
+    }
   };
-
 
   const renderFields = (sectionKey, sectionData) => {
     const isEditing = editMode[sectionKey];
 
     return Object.entries(sectionData).map(([key, value]) => {
-      let label = key.replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase());
+      let label = key
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/^./, (str) => str.toUpperCase());
       if (key === 'linemanager') label = 'Line Manager';
       if (key === 'jobtitle') label = 'Job Title';
 
       if (key === 'department' && sectionKey === 'job') {
-          return (
-            <div key={key} className="w-96 flex gap-2 justify-between text-nowrap">
-              <p className="flex w-full items-center">
-                <span className="min-w-40 text-gray-400">{label}</span>
-                {isEditing ? (
-                  <select
-                    value={value || ""}
-                    onChange={(e) => handleInputChange(sectionKey, key, e.target.value)}
-                    className="w-full border outline-none border-slate-300 rounded px-3 mt-1 py-1 focus:ring-1 focus:ring-green-500 bg-white"
-                  >
-                    <option value="">Select Department</option>
-                    {departments.data?.map(dept => (
-                        <option key={dept.id} value={dept.id}>
-                            {dept.name}
-                        </option> 
-                    ))}
-                  </select>
-                ) : (
-                  <span className="text-gray-700 font-semibold">{value || <span className="text-gray-400 italic">Not provided</span>}</span>
-                )}
-              </p>
-              <span className="text-slate-100">|</span>
-            </div>
-          );
+        return (
+          <div
+            key={key}
+            className="w-96 flex gap-2 justify-between text-nowrap"
+          >
+            <p className="flex w-full items-center">
+              <span className="min-w-40 text-gray-400">{label}</span>
+              {isEditing ? (
+                <select
+                  value={value || ''}
+                  onChange={(e) =>
+                    handleInputChange(sectionKey, key, e.target.value)
+                  }
+                  className="w-full border outline-none border-slate-300 rounded px-3 mt-1 py-1 focus:ring-1 focus:ring-green-500 bg-white"
+                >
+                  <option value="">Select Department</option>
+                  {departments.data?.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-gray-700 font-semibold">
+                  {value || (
+                    <span className="text-gray-400 italic">Not provided</span>
+                  )}
+                </span>
+              )}
+            </p>
+            <span className="text-slate-100">|</span>
+          </div>
+        );
       }
 
       // Handle Line Manager specifically to avoid object crash
       if (key === 'linemanager') {
-          const displayValue = value?.name || value || "";
-          return (
-            <div key={key} className="w-96 flex gap-2 justify-between text-nowrap">
-              <p className="flex w-full items-center">
-                <span className="min-w-40 text-gray-400">{label}</span>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={displayValue}
-                    onChange={(e) => handleInputChange(sectionKey, key, e.target.value)}
-                    className="w-full border outline-none border-slate-300 rounded px-3 mt-1 py-1 focus:ring-1 focus:ring-green-500"
-                  />
-                ) : (
-                  <span className="text-gray-700 font-semibold">{displayValue || <span className="text-gray-400 italic">Not provided</span>}</span>
-                )}
-              </p>
-              <span className="text-slate-100">|</span>
-            </div>
-          );
+        const displayValue = value?.name || value || '';
+        return (
+          <div
+            key={key}
+            className="w-96 flex gap-2 justify-between text-nowrap"
+          >
+            <p className="flex w-full items-center">
+              <span className="min-w-40 text-gray-400">{label}</span>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={displayValue}
+                  onChange={(e) =>
+                    handleInputChange(sectionKey, key, e.target.value)
+                  }
+                  className="w-full border outline-none border-slate-300 rounded px-3 mt-1 py-1 focus:ring-1 focus:ring-green-500"
+                />
+              ) : (
+                <span className="text-gray-700 font-semibold">
+                  {displayValue || (
+                    <span className="text-gray-400 italic">Not provided</span>
+                  )}
+                </span>
+              )}
+            </p>
+            <span className="text-slate-100">|</span>
+          </div>
+        );
       }
 
       return (
@@ -170,13 +206,19 @@ const ViewEmployee = () => {
             <span className="min-w-40 text-gray-400">{label}</span>
             {isEditing ? (
               <input
-                type={key.toLowerCase().includes("date") ? "date" : "text"}
-                value={value || ""}
-                onChange={(e) => handleInputChange(sectionKey, key, e.target.value)}
+                type={key.toLowerCase().includes('date') ? 'date' : 'text'}
+                value={value || ''}
+                onChange={(e) =>
+                  handleInputChange(sectionKey, key, e.target.value)
+                }
                 className="w-full border outline-none border-slate-300 rounded px-3 mt-1 py-1 focus:ring-1 focus:ring-green-500"
               />
             ) : (
-              <span className="text-gray-700 font-semibold">{value || <span className="text-gray-400 italic">Not provided</span>}</span>
+              <span className="text-gray-700 font-semibold">
+                {value || (
+                  <span className="text-gray-400 italic">Not provided</span>
+                )}
+              </span>
             )}
           </p>
           <span className="text-slate-100">|</span>
@@ -185,268 +227,203 @@ const ViewEmployee = () => {
     });
   };
 
-  
   const renderDocuments = () => {
     if (!employeeData?.documents?.files) return null;
     const isEditing = editMode.documents;
     return employeeData.documents.files.map((file, index) => {
       const markedForDelete = documentsToDelete.includes(index);
       return (
-        <div key={index} className="flex justify-between items-center gap-2 p-2 border rounded">
-          <a href={file.url} target="_blank" rel="noopener noreferrer" className={`text-blue-600 hover:underline ${markedForDelete ? "line-through" : ""}`}>{file.name}</a>
-          {isEditing && (
-             <button className="text-red-500">Delete</button>
-          )}
+        <div
+          key={index}
+          className="flex justify-between items-center gap-2 p-2 border rounded"
+        >
+          <a
+            href={file.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`text-blue-600 hover:underline ${markedForDelete ? 'line-through' : ''}`}
+          >
+            {file.name}
+          </a>
+          {isEditing && <button className="text-red-500">Delete</button>}
         </div>
       );
     });
   };
 
   const renderStepContent = () => {
-      if (!employeeData) return null;
-      
-      const sectionMap = ["general", "job", "payroll", "documents"];
-      const sectionKey = sectionMap[currentStep];
-      
-      if (sectionKey === "documents") {
-           return (
-             <div className="space-y-4">
-               <div className="flex justify-between items-center mb-2">
-                 <h2 className="font-semibold text-lg">Documents</h2>
-               </div>
-               {renderDocuments()}
-             </div>
-           )
-      }
+    if (!employeeData) return null;
 
+    const sectionMap = ['general', 'job', 'payroll', 'documents'];
+    const sectionKey = sectionMap[currentStep];
+
+    if (sectionKey === 'documents') {
       return (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="font-semibold text-lg capitalize">{sectionKey} Information</h2>
-              {editMode[sectionKey] ? (
-                 <div className="flex gap-2">
-                    <button onClick={() => handleSave(sectionKey)} className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Save</button>
-                    <button onClick={() => handleCancel(sectionKey)} className="px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
-                 </div>
-              ) : (
-                 <button onClick={() => handleEditToggle(sectionKey)} className="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100">
-                    <Icon className='w-4 h-4' name={'Pen'}/> Edit
-                 </button>
-              )}
-            </div>
-            <div className="flex gap-5 p-4 justify-start items-start flex-wrap">
-               {employeeData[sectionKey] && renderFields(sectionKey, employeeData[sectionKey])}
-            </div>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="font-semibold text-lg">Documents</h2>
           </div>
+          {renderDocuments()}
+        </div>
       );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="font-semibold text-lg capitalize">
+            {sectionKey} Information
+          </h2>
+          {editMode[sectionKey] ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSave(sectionKey)}
+                className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => handleCancel(sectionKey)}
+                className="px-3 py-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => handleEditToggle(sectionKey)}
+              className="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+            >
+              <Icon className="w-4 h-4" name={'Pen'} /> Edit
+            </button>
+          )}
+        </div>
+        <div className="flex gap-5 p-4 justify-start items-start flex-wrap">
+          {employeeData[sectionKey] &&
+            renderFields(sectionKey, employeeData[sectionKey])}
+        </div>
+      </div>
+    );
   };
 
-  if (loading) return <div className="flex justify-center items-center h-64"><ThreeDots /></div>;
+  if (loading)
+    return (
+      <div className="flex justify-center items-center h-64">
+        <ThreeDots />
+      </div>
+    );
   if (error) return <div className="p-4 text-center text-red-500">{error}</div>;
 
   return (
     <div className="flex flex-col w-full h-full justify-start bg-gray-50 dark:bg-slate-900">
-        
-       {/* Promote Modal */}
-       <Modal isOpen={isPromoteModalOpen} onClose={() => setIsPromoteModalOpen(false)} title="Promote to Department Manager">
-           <div className="p-4 flex flex-col gap-4">
-               <p>Select the department this employee will manage:</p>
-               <select 
-                  className="border p-2 rounded w-full"
-                  value={promoteDeptId}
-                  onChange={(e) => setPromoteDeptId(e.target.value)}
-                >
-                   <option value="">-- Select Department --</option>
-                   {departments.data?.map(d => (
-                       <option key={d.id} value={d.id}>{d.name}</option>
-                   ))}
-               </select>
-               <div className="flex justify-end gap-2 mt-4">
-                   <button onClick={() => setIsPromoteModalOpen(false)} className="px-4 py-2 bg-gray-300 rounded">Cancel</button>
-                   <button onClick={handlePromote} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Confirm Promotion</button>
-               </div>
-           </div>
-       </Modal>
-        
-      <Header Title={"Employee Details"} Breadcrumb={"HR Manager / Employee Management / View"} />
-      
+      {/* Promote Modal */}
+      <Modal
+        isOpen={isPromoteModalOpen}
+        onClose={() => setIsPromoteModalOpen(false)}
+        title="Promote to Department Manager"
+      >
+        <div className="p-4 flex flex-col gap-4">
+          <p>Select the department this employee will manage:</p>
+          <select
+            className="border p-2 rounded w-full"
+            value={promoteDeptId}
+            onChange={(e) => setPromoteDeptId(e.target.value)}
+          >
+            <option value="">-- Select Department --</option>
+            {departments.data?.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <div className="flex justify-end gap-2 mt-4">
+            <button
+              onClick={() => setIsPromoteModalOpen(false)}
+              className="px-4 py-2 bg-gray-300 rounded"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handlePromote}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Confirm Promotion
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Header
+        Title={'Employee Details'}
+        Breadcrumb={'HR Manager / Employee Management / View'}
+      />
+
       <div className="flex flex-1 gap-5 overflow-y-scroll rounded-md h-full p-4">
         {/* Left Sidebar */}
         <div className="h-fit shadow rounded-xl overflow-clip w-1/4 bg-white">
-           <div className="flex flex-col items-center p-6 gap-2">
-               <img src={employeeData?.general?.profilepicture || "\\pic\\download (48).png"} className="w-24 h-24 rounded-full object-cover" alt="" />
-               <h3 className="font-bold text-lg">{employeeData?.general?.fullname}</h3>
-               <p className="text-gray-500">{employeeData?.job?.jobtitle}</p>
-               <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">{employeeData?.payroll?.employeestatus}</span>
-           </div>
-           <hr />
-           <div className="p-4 flex flex-col gap-3">
-               <div className="flex gap-2 items-center text-gray-600 text-sm">
-                   <Icon name="Mail" className="w-4 h-4" /> {employeeData?.general?.emailaddress}
-               </div>
-               <div className="flex gap-2 items-center text-gray-600 text-sm">
-                   <Icon name="Phone" className="w-4 h-4" /> {employeeData?.general?.phonenumber}
-               </div>
-               <div className="flex gap-2 items-center text-gray-600 text-sm">
-                   <Icon name="Briefcase" className="w-4 h-4" /> {employeeData?.job?.department}
-               </div>
-           </div>
-           <div className="p-4">
-               <button 
-                  onClick={() => setIsPromoteModalOpen(true)}
-                  className="w-full py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition"
-                >
-                   Promote to Manager
-               </button>
-           </div>
+          <div className="flex flex-col items-center p-6 gap-2">
+            <img
+              src={
+                employeeData?.general?.profilepicture ||
+                '\\pic\\download (48).png'
+              }
+              className="w-24 h-24 rounded-full object-cover"
+              alt=""
+            />
+            <h3 className="font-bold text-lg">
+              {employeeData?.general?.fullname}
+            </h3>
+            <p className="text-gray-500">{employeeData?.job?.jobtitle}</p>
+            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+              {employeeData?.payroll?.employeestatus}
+            </span>
+          </div>
+          <hr />
+          <div className="p-4 flex flex-col gap-3">
+            <div className="flex gap-2 items-center text-gray-600 text-sm">
+              <Icon name="Mail" className="w-4 h-4" />{' '}
+              {employeeData?.general?.emailaddress}
+            </div>
+            <div className="flex gap-2 items-center text-gray-600 text-sm">
+              <Icon name="Phone" className="w-4 h-4" />{' '}
+              {employeeData?.general?.phonenumber}
+            </div>
+            <div className="flex gap-2 items-center text-gray-600 text-sm">
+              <Icon name="Briefcase" className="w-4 h-4" />{' '}
+              {employeeData?.job?.department}
+            </div>
+          </div>
+          <div className="p-4">
+            <button
+              onClick={() => setIsPromoteModalOpen(true)}
+              className="w-full py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 transition"
+            >
+              Promote to Manager
+            </button>
+          </div>
         </div>
 
         {/* Main Content */}
         <div className="flex flex-col rounded-md shadow h-full flex-1 gap-4 p-4 bg-white">
-          <StepHeader steps={steps} currentStep={currentStep} onStepClick={setCurrentStep} />
-          <div className="flex-1 overflow-y-auto">
-              {renderStepContent()}
-          </div>
+          <StepHeader
+            steps={steps}
+            currentStep={currentStep}
+            onStepClick={setCurrentStep}
+          />
+          <div className="flex-1 overflow-y-auto">{renderStepContent()}</div>
         </div>
       </div>
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        close={() => setAlertConfig((p) => ({ ...p, isOpen: false }))}
+        type={alertConfig.type}
+        message={alertConfig.message}
+      />
     </div>
   );
 };
 
 export default ViewEmployee;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import React, { useEffect, useState } from "react";
 // import { useParams } from "react-router-dom";
@@ -536,7 +513,7 @@ export default ViewEmployee;
 //       }
 //     };
 
-//     // if (id) 
+//     // if (id)
 //         fetchEmployee();
 //   }, [axiosPrivate, id]);
 

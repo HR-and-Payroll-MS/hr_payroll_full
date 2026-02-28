@@ -48,7 +48,7 @@ function TableStructures({
       const isStatus =
         typeof value === 'string' &&
         ['PRESENT', 'LATE', 'ABSENT', 'PERMISSION', 'LEAVE'].includes(
-          value.toUpperCase()
+          value.toUpperCase(),
         );
 
       let colorClass = 'text-gray-700 dark:text-slate-300';
@@ -79,8 +79,8 @@ function TableStructures({
                 item[0].startsWith('http')
                   ? item[0]
                   : item[0].startsWith('/')
-                  ? item[0]
-                  : `${BASE_URL}${item[0]}`
+                    ? item[0]
+                    : `${BASE_URL}${item[0]}`
               }
               alt={item[1]}
               onError={(e) => {
@@ -350,23 +350,35 @@ function TableStructures({
     }
     case 75: {
       const amount = Number(item[0]) || 0;
-      const isCredit = amount < 0;
-      const isDebit = amount > 0;
-      return (
-        <div className="px-2 text-xs text-right">
-          {isCredit ? (
-            <div className="flex flex-col items-end text-emerald-600 font-medium">
-              <span>+{formatMoney(Math.abs(amount))}</span>
-              <span className="text-[10px] text-emerald-500">credit</span>
-            </div>
-          ) : isDebit ? (
+      // New rule: negative amounts represent reductions (show RED),
+      // positive amounts represent additions/credits (show GREEN).
+      if (amount === 0) {
+        return (
+          <div className="px-2 text-xs text-right">
+            <span className="text-slate-300">-</span>
+          </div>
+        );
+      }
+
+      if (amount < 0) {
+        // Reduction
+        return (
+          <div className="px-2 text-xs text-right">
             <div className="flex flex-col items-end text-red-600 font-medium">
               <span>-{formatMoney(Math.abs(amount))}</span>
-              <span className="text-[10px] text-red-500">carryover</span>
+              <span className="text-[10px] text-red-500">reduction</span>
             </div>
-          ) : (
-            <span className="text-slate-300">-</span>
-          )}
+          </div>
+        );
+      }
+
+      // amount > 0: Addition / credit
+      return (
+        <div className="px-2 text-xs text-right">
+          <div className="flex flex-col items-end text-emerald-600 font-medium">
+            <span>+{formatMoney(Math.abs(amount))}</span>
+            <span className="text-[10px] text-emerald-500">credit</span>
+          </div>
         </div>
       );
     }
@@ -429,51 +441,7 @@ function TableStructures({
               )}
             </button>
           )}
-          {['draft', 'generated', 'rolled_back'].includes(D1) &&
-            data?.payslipId && (
-              <button
-                className="ml-2 text-indigo-700 hover:text-indigo-900 hover:bg-indigo-50 p-2 rounded-lg transition-colors"
-                onClick={async () => {
-                  const targetId = data?.payslipId ?? item?.[0];
-                  if (!targetId) {
-                    window.alert('No payslip id found for this row');
-                    return;
-                  }
-                  const raw = window.prompt(
-                    'Enter adjustment for next payroll (positive = deduction, negative = credit):',
-                    '0'
-                  );
-                  if (raw === null) return;
-                  const val = Number(raw);
-                  if (!Number.isFinite(val)) {
-                    window.alert('Invalid number');
-                    return;
-                  }
-                  try {
-                    console.log('Set Adj call', {
-                      targetId,
-                      baseURL: axiosPrivate?.defaults?.baseURL,
-                    });
-                    await axiosPrivate.post(
-                      `/payroll/payslips/${targetId}/set-adjustment/`,
-                      {
-                        adjustment: val,
-                      }
-                    );
-                    window.alert('Adjustment saved for next payroll');
-                  } catch (err) {
-                    const msg =
-                      err?.response?.data?.error ||
-                      err?.message ||
-                      'Failed to set adjustment';
-                    console.error('set-adjustment failed', err);
-                    window.alert(msg);
-                  }
-                }}
-              >
-                Set Adj
-              </button>
-            )}
+          {/* Set Adj button removed for Generate Payroll action table */}
         </div>
       );
     case 771:

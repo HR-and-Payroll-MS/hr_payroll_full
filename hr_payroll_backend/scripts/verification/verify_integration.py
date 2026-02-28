@@ -43,7 +43,8 @@ def verify():
             print(f"     holidayRate: {p.content.get('holidayRate')}")
         elif p.section == 'attendancePolicy':
             grace = p.content.get('gracePeriod', {})
-            print(f"     gracePeriod: {grace.get('minutesAllowed')} minutes")
+            late_after = grace.get('lateAfter', grace.get('minutesAllowed'))
+            print(f"     lateAfter: {late_after} minutes")
         elif p.section == 'shiftPolicy':
             print(f"     workingHoursPerDay: {p.content.get('workingHoursPerDay')}")
 

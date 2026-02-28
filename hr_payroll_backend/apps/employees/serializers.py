@@ -54,7 +54,8 @@ class EmployeeGeneralSerializer(serializers.Serializer):
     socialinsurance = serializers.CharField(source='social_insurance')
     healthinsurance = serializers.CharField(source='health_care')
     phonenumber = serializers.CharField(source='phone')
-    emailaddress = serializers.CharField(source='email', required=False, allow_blank=True)
+    # Email is authoritative on the linked User account. Prefer User.email, fallback to Employee.email.
+    emailaddress = serializers.SerializerMethodField()
     photo = serializers.ImageField()
     profilepicture = serializers.ImageField(source='photo')
     
@@ -71,6 +72,16 @@ class EmployeeGeneralSerializer(serializers.Serializer):
     emestate = serializers.CharField(source='emergency_state')
     emecity = serializers.CharField(source='emergency_city')
     emepostcode = serializers.CharField(source='emergency_postcode')
+
+    def get_emailaddress(self, obj):
+        # Try linked user first
+        try:
+            if hasattr(obj, 'user_account') and obj.user_account and obj.user_account.email:
+                return obj.user_account.email
+        except Exception:
+            pass
+        # No Employee.email field exists anymore; return None if not present on User
+        return getattr(obj, 'email', None)
 
 
 class EmployeeJobSerializer(serializers.Serializer):
@@ -101,30 +112,23 @@ class EmployeeJobSerializer(serializers.Serializer):
             "photo": None,
             "id": None
         }
-        
+
         request = self.context.get('request')
-        
-        if obj.line_manager:
-            data["name"] = obj.line_manager.fullname
-            data["id"] = obj.line_manager.id
-            if obj.line_manager.photo:
+
+        # Use department manager as the single source for line manager display
+        if obj.department and obj.department.manager:
+            mgr = obj.department.manager
+            data["name"] = (
+                f"{mgr.fullname} (Self)" if mgr.id == obj.id else mgr.fullname
+            )
+            data["id"] = mgr.id
+            if mgr.photo:
                 if request:
-                    data["photo"] = request.build_absolute_uri(obj.line_manager.photo.url)
+                    data["photo"] = request.build_absolute_uri(mgr.photo.url)
                 else:
-                    data["photo"] = obj.line_manager.photo.url
+                    data["photo"] = mgr.photo.url
             return data
-        
-        # If no line manager, check if they are the department manager themselves
-        if obj.department and obj.department.manager == obj:
-            data["name"] = f"{obj.fullname} (Self)"
-            data["id"] = obj.id
-            if obj.photo:
-                 if request:
-                     data["photo"] = request.build_absolute_uri(obj.photo.url)
-                 else:
-                     data["photo"] = obj.photo.url
-            return data
-            
+
         return None
 
     def get_workschedule(self, obj):
@@ -209,6 +213,8 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
+    # Allow passing the desired User.email when creating/updating an employee
+    user_email = serializers.EmailField(write_only=True, required=False, allow_blank=True)
     # Write-only fields for nested updates
     general = serializers.DictField(required=False, write_only=True)
     job = serializers.DictField(required=False, write_only=True)
@@ -220,7 +226,8 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
             # General in flat format (for flexibility)
             'first_name', 'last_name', 'gender', 'date_of_birth', 'marital_status',
             'nationality', 'personal_tax_id', 'social_insurance', 'health_care',
-            'phone', 'email', 'photo',
+            'phone', 'photo',
+            'user_email',
             'primary_address', 'country', 'state', 'city', 'postcode',
             'emergency_fullname', 'emergency_phone', 'emergency_state', 
             'emergency_city', 'emergency_postcode',
@@ -269,7 +276,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         numeric_fields = ['service_years', 'salary', 'offset', 'one_off', 
                           'line_manager', 'department', 'work_schedule']
         # Text fields that can be empty strings but should be None in DB
-        optional_text_fields = ['email', 'phone', 'gender', 'marital_status', 
+        optional_text_fields = ['phone', 'gender', 'marital_status', 
                                 'nationality', 'personal_tax_id', 'social_insurance',
                                 'health_care', 'primary_address', 'country', 'state',
                                 'city', 'postcode', 'emergency_fullname', 'emergency_phone',
@@ -304,7 +311,8 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
              if 'socialinsurance' in general: data['social_insurance'] = general['socialinsurance']
              if 'healthinsurance' in general: data['health_care'] = general['healthinsurance']
              if 'phonenumber' in general: data['phone'] = general['phonenumber']
-             if 'emailaddress' in general: data['email'] = general['emailaddress']
+             # Capture email for the linked User account (write-only field `user_email`)
+             if 'emailaddress' in general: data['user_email'] = general['emailaddress']
              if 'primaryaddress' in general: data['primary_address'] = general['primaryaddress']
              if 'country' in general: data['country'] = general['country']
              if 'state' in general: data['state'] = general['state']
@@ -403,14 +411,20 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         documents_data = validated_data.pop('documents', [])
+        # Pop user_email if provided (write-only). We'll attach it to the instance
+        user_email = validated_data.pop('user_email', None)
         # Clean up any nested dicts that might have passed through
         validated_data.pop('general', None)
         validated_data.pop('job', None)
         validated_data.pop('payroll', None)
         
-        # Create the employee first
-        # Signals will automatically create the linked User account
-        employee = Employee.objects.create(**validated_data)
+        # Create the employee instance without using objects.create so we can
+        # attach a temporary `_user_email` attribute that the creation signal
+        # will pick up and use for the linked User account.
+        employee = Employee(**validated_data)
+        if user_email:
+            setattr(employee, '_user_email', user_email)
+        employee.save()
         
         # Handle documents
         # Handle documents
@@ -437,12 +451,45 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         validated_data.pop('job', None)
         validated_data.pop('payroll', None)
         
+        # Extract user_email if present and handle separately
+        user_email = validated_data.pop('user_email', None)
+
         documents_data = validated_data.pop('documents', None)
-        
+
+        # Apply remaining fields to Employee
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        
+
+        # Update linked User email if requested
+        if user_email is not None:
+            try:
+                user = instance.user_account
+            except Exception:
+                user = None
+
+            if user:
+                # Check uniqueness
+                existing = User.objects.filter(email=user_email).exclude(pk=user.pk).exists()
+                if existing:
+                    raise serializers.ValidationError({
+                        'user_email': 'This email is already in use by another account.'
+                    })
+                user.email = user_email or None
+                user.save()
+            else:
+                # No linked user - attempt to create one
+                username_base = (instance.employee_id or instance.fullname or f"employee{instance.id}")
+                username = username_base
+                counter = 1
+                while User.objects.filter(username=username).exists():
+                    username = f"{username_base}{counter}"
+                    counter += 1
+                user = User.objects.create(username=username, email=user_email or None)
+                instance.user_account = user
+                instance.save()
+
+        # Handle documents upload
         if documents_data:
             uploader = None
             request = self.context.get('request')
@@ -457,4 +504,5 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
                     document_type='General',
                     uploaded_by=uploader
                 )
+
         return instance

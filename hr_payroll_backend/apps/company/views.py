@@ -220,7 +220,7 @@ class DashboardStatsView(APIView):
             return []
     
     def _get_hr_manager_data(self, today, month_start, year_start, recent_activities):
-        """Dashboard data for HR Manager."""
+        """Dashboard data for Manager."""
         from apps.employees.models import Employee
         from apps.departments.models import Department
         from apps.leaves.models import LeaveRequest

@@ -30,10 +30,19 @@ export default function RequestList({
       {/* Scrollable List Area */}
       <div className="flex-1 p-2 space-y-3 overflow-auto scrollbar-hidden">
         {requests.map((req) => {
-          const emp = employees.find((e) => e.id === req.employeeId) || {
-            name: 'Unknown',
-            dept: 'N/A',
-          };
+          // prefer global employees list, fallback to per-request employee_info
+          const empFromList = employees.find((e) => e.id === req.employeeId);
+          const empFromReq = req.employee_info
+            ? {
+                id: req.employee_info.id,
+                name: req.employee_info.fullname || 'Unknown',
+                dept: req.employee_info.department || 'N/A',
+                photo: req.employee_info.photo || null,
+              }
+            : null;
+
+          const emp = empFromList ||
+            empFromReq || { name: 'Unknown', dept: 'N/A' };
 
           return (
             <div
@@ -47,8 +56,8 @@ export default function RequestList({
                   req.status === 'approved'
                     ? 'bg-emerald-500'
                     : req.status === 'denied'
-                    ? 'bg-red-500'
-                    : 'bg-slate-500'
+                      ? 'bg-red-500'
+                      : 'bg-slate-500'
                 }`}
               />
 
@@ -100,8 +109,8 @@ export default function RequestList({
                     </span>
                   </div>
 
-                  <div className="text-xs text-slate-400 dark:text-slate-500 mt-2 line-clamp-1 italic">
-                    "{req.reason}"
+                  <div className="text-xs text-slate-400 dark:text-slate-500 mt-2 line-clamp-1">
+                    {req.reason}
                   </div>
                 </div>
 

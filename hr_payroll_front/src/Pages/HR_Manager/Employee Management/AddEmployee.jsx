@@ -49,7 +49,7 @@ const AddEmployee = () => {
     job: {
       employeeid: '',
       serviceyear: '',
-      joindate: '',
+      joindate: new Date().toISOString().slice(0, 10),
       jobtitle: '',
       positiontype: '',
       employmenttype: '',
@@ -119,6 +119,8 @@ const AddEmployee = () => {
     appendIfValid('social_insurance', formData.general.socialinsurance);
     appendIfValid('health_care', formData.general.healthinsurance);
     appendIfValid('phone', formData.general.phonenumber);
+    // Email (User email) - send as `user_email` to backend
+    appendIfValid('user_email', formData.general.emailaddress);
 
     // Job - only append if valid (department and line_manager need to be numbers)
     appendIfValid('line_manager', formData.job.linemanager);

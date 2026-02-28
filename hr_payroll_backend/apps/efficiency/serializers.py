@@ -42,7 +42,14 @@ class EfficiencyEvaluationSerializer(serializers.ModelSerializer):
         return None
 
     def get_employee_email(self, obj):
-        return obj.employee.email if obj.employee else None
+        if not obj.employee:
+            return None
+        try:
+            if hasattr(obj.employee, 'user_account') and obj.employee.user_account and obj.employee.user_account.email:
+                return obj.employee.user_account.email
+        except Exception:
+            pass
+        return getattr(obj.employee, 'email', None)
 
     def get_employee_job_title(self, obj):
         return obj.employee.job_title if obj.employee else None

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import Icon from "../../../Components/Icon";
+import Icon from "../../Components/Icon";
 
 /* -------------------------------------------------------------------------- */
 /* ------------------------- Notifications Module --------------------------- */

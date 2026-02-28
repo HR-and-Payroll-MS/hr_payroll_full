@@ -29,15 +29,15 @@ import ClockoutModal from '../../../Components/Modals/ClockoutModal';
 import useAuth from '../../../Context/AuthContext';
 
 const allMonths = Array.from({ length: 12 }, (_, i) =>
-  dayjs().month(i).format('MMMM')
+  dayjs().month(i).format('MMMM'),
 );
 const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 20 }, (_, i) =>
-  (currentYear - i).toString()
+  (currentYear - i).toString(),
 );
 const formatMoney = (amount) =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(
-    amount || 0
+    amount || 0,
   );
 
 function GeneratePayroll() {
@@ -78,14 +78,25 @@ function GeneratePayroll() {
   const [year, setYear] = useState(currentYear.toString());
 
   // Early generation warning check
+  const isCurrentMonth = useMemo(() => {
+    try {
+      const currentMonthName = dayjs().format('MMMM');
+      const currentYearNum = new Date().getFullYear();
+      return (
+        String(month).trim().toLowerCase() ===
+          String(currentMonthName).trim().toLowerCase() &&
+        parseInt(year) === currentYearNum
+      );
+    } catch (e) {
+      return false;
+    }
+  }, [month, year]);
+
   const isEarlyGeneration = useMemo(() => {
     const today = new Date();
-    const isCurrentMonth =
-      today.getMonth() === dayjs().month(month).month() &&
-      today.getFullYear() === parseInt(year);
     // Warning if generating for current month before the 25th
     return isCurrentMonth && today.getDate() < 25;
-  }, [month, year]);
+  }, [isCurrentMonth]);
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState(null);
   const [taxCodes, setTaxCodes] = useState([]);
@@ -117,14 +128,14 @@ function GeneratePayroll() {
       (c) =>
         c.id === selectedTaxCode ||
         c.code === selectedTaxCode ||
-        String(c.id) === String(selectedTaxCode)
+        String(c.id) === String(selectedTaxCode),
     );
     return tc ? `${tc.name} (${tc.code})` : '';
   }, [activeTaxCodesSorted, selectedTaxCode]);
 
   const departments = useMemo(
     () => ['All Employees', 'Finance', 'IT', 'HR', 'Operations'],
-    []
+    [],
   );
 
   // Fetch payroll period data
@@ -143,7 +154,7 @@ function GeneratePayroll() {
 
         const periods = periodsRes.data.results || periodsRes.data || [];
         const existingPeriod = periods.find(
-          (p) => p.month === month && p.year === parseInt(year)
+          (p) => p.month === month && p.year === parseInt(year),
         );
 
         if (existingPeriod) {
@@ -151,7 +162,7 @@ function GeneratePayroll() {
           setStatus(existingPeriod.status);
 
           const periodDetail = await axiosPrivate.get(
-            `/payroll/periods/${existingPeriod.id}/`
+            `/payroll/periods/${existingPeriod.id}/`,
           );
           const periodData = periodDetail.data;
 
@@ -166,7 +177,7 @@ function GeneratePayroll() {
                 (d) =>
                   !String(d.label || '')
                     .toLowerCase()
-                    .includes('tax')
+                    .includes('tax'),
               )
               .reduce((acc, curr) => acc + (parseFloat(curr.amount) || 0), 0);
             const fallbackNonTax = parseFloat(p.total_deductions) || 0;
@@ -223,7 +234,7 @@ function GeneratePayroll() {
         }
       }
     },
-    [axiosPrivate, month, year]
+    [axiosPrivate, month, year],
   );
 
   // Fetch tax codes for configuration
@@ -298,14 +309,14 @@ function GeneratePayroll() {
                   allowances,
                   versions: transformedVersions,
                 }
-              : c
-          )
+              : c,
+          ),
         );
       } catch (err) {
         console.error('Failed to fetch tax code detail', err);
       }
     },
-    [axiosPrivate]
+    [axiosPrivate],
   );
 
   useEffect(() => {
@@ -313,32 +324,102 @@ function GeneratePayroll() {
     fetchTaxCodes();
   }, [fetchPayrollPeriod, fetchTaxCodes]);
 
-  // Real-time status polling (silent refresh to avoid flicker)
+  // Refresh payroll period when a payslip has been updated by the Payslip modal
   useEffect(() => {
-    let interval;
-    if (status === 'pending_approval' || status === 'rolled_back') {
-      interval = setInterval(() => {
+    const onPayslipUpdated = (e) => {
+      try {
+        console.debug(
+          'payslip-updated event received, refreshing payroll period',
+        );
         fetchPayrollPeriod(true);
-      }, 5000);
-    }
-    return () => clearInterval(interval);
-  }, [status, fetchPayrollPeriod]);
+      } catch (err) {
+        console.error('Failed to refresh payroll after payslip update', err);
+      }
+    };
+    window.addEventListener('payslip-updated', onPayslipUpdated);
+    return () =>
+      window.removeEventListener('payslip-updated', onPayslipUpdated);
+  }, [fetchPayrollPeriod]);
+
+  // Debug logging to help diagnose missing Generate button
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line no-console
+      console.debug('Payroll Debug:', {
+        month,
+        year,
+        periodId,
+        status,
+        userRole,
+        isCurrentMonth,
+      });
+    } catch (e) {}
+  }, [month, year, periodId, status, userRole, isCurrentMonth]);
+
+  // Real-time status polling (silent refresh to avoid flicker)
+  // Keeps status in sync when admins change it (e.g., finalized -> draft).
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchPayrollPeriod(true);
+      }
+    }, 8000);
+
+    const onFocus = () => fetchPayrollPeriod(true);
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchPayrollPeriod]);
 
   // Create period if not exists
   const createPeriod = async () => {
     try {
-      const res = await axiosPrivate.post('/payroll/periods/', {
-        month,
-        year: parseInt(year),
-      });
-      setPeriodId(res.data.id);
-      setStatus(res.data.status);
-      return res.data.id;
+      const payload = { month, year: parseInt(year) };
+      console.log('createPeriod: POST /payroll/periods/ payload:', payload);
+      const res = await axiosPrivate.post('/payroll/periods/', payload);
+      console.log('createPeriod: response:', res?.data);
+      const newId = res.data.id;
+      if (newId) {
+        setPeriodId(newId);
+        setStatus(res.data.status);
+        return newId;
+      }
+      // Unexpected: no id in response
+      console.error(
+        'createPeriod: created period response missing id',
+        res?.data,
+      );
+      return null;
     } catch (err) {
+      console.error(
+        'createPeriod: error creating period',
+        err?.response || err,
+      );
       if (err.response?.status === 400) {
-        // Period might already exist, try to fetch it
-        await fetchPayrollPeriod();
-        return periodId;
+        // Period might already exist — fetch the list and return matching id
+        try {
+          const listRes = await axiosPrivate.get('/payroll/periods/', {
+            params: { month, year },
+          });
+          const list = listRes.data.results || listRes.data || [];
+          const existing = list.find(
+            (p) => p.month === month && Number(p.year) === Number(year),
+          );
+          if (existing) {
+            setPeriodId(existing.id);
+            setStatus(existing.status || 'draft');
+            return existing.id;
+          }
+        } catch (fetchErr) {
+          console.error(
+            'createPeriod: failed to fetch periods after 400',
+            fetchErr,
+          );
+        }
+        return null;
       }
       throw err;
     }
@@ -362,21 +443,39 @@ function GeneratePayroll() {
       if (!currentPeriodId) {
         currentPeriodId = await createPeriod();
       }
+      if (!currentPeriodId) {
+        console.error(
+          'GeneratePayroll: no period id available after createPeriod',
+          { periodId, currentPeriodId },
+        );
+        throw new Error(
+          'Failed to determine payroll period id before generation',
+        );
+      }
 
-      const res = await axiosPrivate.post(
-        `/payroll/periods/${currentPeriodId}/generate/`,
-        {
-          tax_code_id: selectedTaxCode,
-          tax_code_version_id: selectedTaxVersion || undefined,
-        }
-      );
+      const reqUrl = `/payroll/periods/${currentPeriodId}/generate/`;
+      console.log('GeneratePayroll: POST', reqUrl, {
+        tax_code_id: selectedTaxCode,
+        tax_code_version_id: selectedTaxVersion,
+      });
+
+      const res = await axiosPrivate.post(reqUrl, {
+        tax_code_id: selectedTaxCode,
+        tax_code_version_id: selectedTaxVersion || undefined,
+      });
       setStatus(res.data.period?.status || 'generated');
 
       // Refresh to get new payslips
       await fetchPayrollPeriod();
     } catch (err) {
       console.error('Error generating payroll:', err);
-      setError(err.response?.data?.error || 'Failed to generate payroll');
+      // Provide clearer UI message for common cases (network, 404 when id missing)
+      const serverMsg =
+        err.response?.data?.error || err.response?.data || err.message;
+      setError(
+        serverMsg ||
+          'Failed to generate payroll. Check server logs or network.',
+      );
       // Re-open modal if failed? Maybe not.
     } finally {
       setSyncing(false);
@@ -393,7 +492,19 @@ function GeneratePayroll() {
       if (!currentPeriodId) {
         currentPeriodId = await createPeriod();
       }
-      await axiosPrivate.post(`/payroll/periods/${currentPeriodId}/generate/`, {
+      if (!currentPeriodId) {
+        console.error(
+          'QuickRegenerate: no period id available after createPeriod',
+          { periodId, currentPeriodId },
+        );
+        throw new Error(
+          'Failed to determine payroll period id before regeneration',
+        );
+      }
+
+      const reqUrl = `/payroll/periods/${currentPeriodId}/generate/`;
+      console.log('QuickRegenerate: POST', reqUrl);
+      await axiosPrivate.post(reqUrl, {
         tax_code_id: selectedTaxCode || undefined,
         tax_code_version_id: selectedTaxVersion || undefined,
       });
@@ -432,7 +543,7 @@ function GeneratePayroll() {
         `/payroll/periods/${periodId}/submit/`,
         {
           notes: '',
-        }
+        },
       );
       setStatus(res.data.period?.status || 'pending_approval');
     } catch (err) {
@@ -453,7 +564,7 @@ function GeneratePayroll() {
         `/payroll/periods/${periodId}/approve/`,
         {
           notes: '',
-        }
+        },
       );
       setStatus(res.data.period?.status || 'approved');
     } catch (err) {
@@ -471,7 +582,7 @@ function GeneratePayroll() {
 
     try {
       const res = await axiosPrivate.post(
-        `/payroll/periods/${periodId}/finalize/`
+        `/payroll/periods/${periodId}/finalize/`,
       );
       setStatus(res.data.period?.status || 'finalized');
     } catch (err) {
@@ -494,7 +605,7 @@ function GeneratePayroll() {
         `/payroll/periods/${periodId}/rollback/`,
         {
           reason: rollbackReason,
-        }
+        },
       );
       setStatus(res.data.period?.status || 'rolled_back');
       setShowRollbackModal(false);
@@ -517,7 +628,7 @@ function GeneratePayroll() {
         `/payroll/payslips/${contactModal.payslip.payslipId}/contact/`,
         {
           message: contactMessage,
-        }
+        },
       );
 
       // Update local state
@@ -525,8 +636,8 @@ function GeneratePayroll() {
         prev.map((p) =>
           p.payslipId === contactModal.payslip.payslipId
             ? { ...p, hasIssues: true, issueNotes: contactMessage }
-            : p
-        )
+            : p,
+        ),
       );
 
       setContactModal({ isOpen: false, payslip: null });
@@ -557,7 +668,7 @@ function GeneratePayroll() {
           net: acc.net + (Number(net) || 0),
         };
       },
-      { gross: 0, tax: 0, net: 0 }
+      { gross: 0, tax: 0, net: 0 },
     );
   }, [payslips]);
 
@@ -567,8 +678,8 @@ function GeneratePayroll() {
       (p) =>
         Array.isArray(p.details?.warnings) &&
         p.details.warnings.some((w) =>
-          String(w).toLowerCase().includes('no active tax version')
-        )
+          String(w).toLowerCase().includes('no active tax version'),
+        ),
     );
     const zeroTaxButGross =
       totals.tax === 0 && totals.gross > 0 && payslips.length > 0;
@@ -687,24 +798,23 @@ function GeneratePayroll() {
           )}
 
           {/* PAYROLL OFFICER BUTTONS */}
-          {userRole === 'payroll_officer' && (
+          {(userRole === 'payroll_officer' || userRole === 'hr_manager') && (
             <>
-              {(status === 'draft' ||
-                status === 'rolled_back' ||
-                !periodId) && (
-                <button
-                  onClick={handleGenerate}
-                  disabled={syncing}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {syncing ? (
-                    <RefreshCw size={14} className="animate-spin" />
-                  ) : (
-                    <CheckCircle size={14} />
-                  )}
-                  {periodId ? 'Regenerate' : 'Generate'} Payroll
-                </button>
-              )}
+              {isCurrentMonth &&
+                !['finalized', 'pending_approval'].includes(status) && (
+                  <button
+                    onClick={handleGenerate}
+                    disabled={syncing}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {syncing ? (
+                      <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                      <CheckCircle size={14} />
+                    )}
+                    {periodId ? 'Regenerate' : 'Generate'} Payroll
+                  </button>
+                )}
 
               {(status === 'generated' || status === 'rolled_back') && (
                 <>
@@ -759,20 +869,21 @@ function GeneratePayroll() {
             </>
           )}
 
-          {userRole === 'hr_manager' && status === 'approved' && (
-            <button
-              onClick={handleFinalize}
-              disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
-            >
-              {syncing ? (
-                <RefreshCw size={14} className="animate-spin" />
-              ) : (
-                <Lock size={14} />
-              )}
-              Finalize Payroll
-            </button>
-          )}
+          {(userRole === 'hr_manager' || userRole === 'payroll_officer') &&
+            status === 'approved' && (
+              <button
+                onClick={handleFinalize}
+                disabled={syncing}
+                className="flex items-center gap-2 px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 shadow text-xs active:scale-95 transition-all disabled:opacity-50"
+              >
+                {syncing ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <Lock size={14} />
+                )}
+                Finalize Payroll
+              </button>
+            )}
 
           {status === 'finalized' && (
             <ExportTable
@@ -908,12 +1019,12 @@ function GeneratePayroll() {
                 {status === 'pending_approval'
                   ? 'Pending HR Approval (Read-Only)'
                   : status === 'approved'
-                  ? 'Approved - Ready to Finalize'
-                  : status === 'finalized'
-                  ? 'Payroll Completed'
-                  : status === 'rolled_back'
-                  ? 'Rolled Back - Needs Correction'
-                  : 'Drafting...'}
+                    ? 'Approved - Ready to Finalize'
+                    : status === 'finalized'
+                      ? 'Payroll Completed'
+                      : status === 'rolled_back'
+                        ? 'Rolled Back - Needs Correction'
+                        : 'Drafting...'}
               </span>
             </div>
             <div
@@ -1138,7 +1249,7 @@ function TaxCodeVersionsSelect({
             v.tax_code?.id === taxCodeId ||
             v.tax_code?.code === taxCodeId ||
             (typeof taxCodeId === 'string' &&
-              v.tax_code?.toString() === taxCodeId)
+              v.tax_code?.toString() === taxCodeId),
         );
         const activeOnly = filtered.filter((v) => v.is_active);
         if (mounted) {

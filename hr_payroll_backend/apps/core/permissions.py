@@ -2,8 +2,8 @@ from rest_framework import permissions
 
 class IsHRManager(permissions.BasePermission):
     """
-    Allows access only to HR Managers, Admins, or Payroll officers.
-    In this system, the primary HR role group is often named 'Manager'.
+    Allows access only to Managers, Admins, or Payroll officers.
+    In this system, the primary HR role group is named 'Manager'.
     """
     def has_permission(self, request, view):
         try:
@@ -14,12 +14,12 @@ class IsHRManager(permissions.BasePermission):
                 return True
                 
             user_groups = [g.name.upper() for g in request.user.groups.all()]
-            # Primary HR Roles
-            hr_role_groups = ['HR', 'HR MANAGER', 'ADMIN', 'HR-MANAGER', 'PAYROLL', 'MANAGER', 'HUMAN RESOURCES']
+            # Primary HR Roles (canonical: 'Manager')
+            hr_role_groups = ['HR', 'MANAGER', 'ADMIN', 'PAYROLL', 'HUMAN RESOURCES']
             is_hr = any(role in user_groups for role in hr_role_groups)
             
             # If they are in Line Manager group, they are NOT HR unless explicitly in HR group
-            if 'LINE MANAGER' in user_groups and not any(r in user_groups for r in ['HR', 'HR MANAGER', 'ADMIN', 'MANAGER']):
+            if 'LINE MANAGER' in user_groups and not any(r in user_groups for r in ['HR', 'MANAGER', 'ADMIN']):
                 return False
                 
             # Fallback to job title ONLY for clear HR roles
@@ -39,7 +39,7 @@ class IsHRManager(permissions.BasePermission):
 
 class IsHRManagerOrReadOnly(IsHRManager):
     """
-    Allows write access to HR Managers, but read-only access to others.
+    Allows write access to Managers, but read-only access to others.
     """
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
@@ -49,7 +49,7 @@ class IsHRManagerOrReadOnly(IsHRManager):
 
 class IsPayrollOfficer(permissions.BasePermission):
     """
-    Allows access only to Payroll Officers, HR Managers, and Admins.
+    Allows access only to Payroll Officers, Managers, and Admins.
     """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -59,6 +59,30 @@ class IsPayrollOfficer(permissions.BasePermission):
             return True
             
         user_groups = [g.name.upper() for g in request.user.groups.all()]
-        payroll_roles = ['PAYROLL', 'PAYROLL OFFICER', 'PAYROLL-OFFICER', 'HR', 'HR MANAGER', 'ADMIN']
+        payroll_roles = ['PAYROLL', 'PAYROLL OFFICER', 'PAYROLL-OFFICER', 'HR', 'MANAGER', 'ADMIN']
         return any(role in user_groups for role in payroll_roles)
+
+
+class IsManager(permissions.BasePermission):
+    """
+    Allows access only to users in the 'Manager' group or superusers.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        user_groups = [g.name.upper() for g in request.user.groups.all()]
+        return 'MANAGER' in user_groups
+
+
+class IsManagerOrReadOnly(IsManager):
+    """
+    Read-only access to others, full access to Manager group.
+    """
+    def has_permission(self, request, view):
+        from rest_framework import permissions as _perm
+        if request.method in _perm.SAFE_METHODS:
+            return True
+        return super().has_permission(request, view)
 

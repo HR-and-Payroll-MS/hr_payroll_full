@@ -8,10 +8,10 @@ from apps.employees.models import Employee
 from apps.employees.signals import sync_user_groups
 
 def promote_user(username):
-    print(f"--- Promoting {username} to HR Manager ---")
+    print(f"--- Promoting {username} to Manager ---")
     try:
         emp = Employee.objects.get(user_account__username=username)
-        emp.job_title = 'HR Manager'
+        emp.job_title = 'Manager'
         emp.save()
         # The signal should handle group sync now
         print(f"Role updated for {emp.fullname}")
