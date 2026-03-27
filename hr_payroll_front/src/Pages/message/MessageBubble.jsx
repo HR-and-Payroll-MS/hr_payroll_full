@@ -8,6 +8,7 @@ import {
   FileText,
   CornerUpLeft,
 } from 'lucide-react';
+import { API_BASE_URL } from '../../config/runtimeConfig';
 
 const AudioPlayer = ({ duration }) => (
   <div className="flex items-center gap-3 w-48">
@@ -33,8 +34,7 @@ const getMediaUrl = (path) => {
   if (!path) return '';
   if (path.startsWith('http')) return path;
   // Derive host from API base, stripping the /api/v1 suffix
-  const apiBase = 'http://localhost:8001/api/v1';
-  const hostBase = apiBase.replace(/\/api\/v\d+$/, '');
+  const hostBase = API_BASE_URL.replace(/\/api\/v\d+$/, '');
   return `${hostBase}${path}`;
 };
 

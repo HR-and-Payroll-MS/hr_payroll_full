@@ -30,7 +30,11 @@ useEffect(() => {
     try {
       await login(formData.username, formData.password);
     } catch (err) {
-      setMessage(err.response?.data?.message || "Authentication failed. Please check your credentials.");
+      if (!err.response) {
+        setMessage('Cannot reach authentication server. Please try again in a moment.');
+      } else {
+        setMessage(err.response?.data?.message || 'Authentication failed. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }

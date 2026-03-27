@@ -155,10 +155,16 @@ DJOSER = {
 }
 
 # CORS Configuration - allow frontend origins
+_default_cors_origins = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000'
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
+    origin.strip()
+    for origin in os.getenv('CORS_ALLOWED_ORIGINS', _default_cors_origins).split(',')
+    if origin.strip()
+]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', _default_cors_origins).split(',')
+    if origin.strip()
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only in development

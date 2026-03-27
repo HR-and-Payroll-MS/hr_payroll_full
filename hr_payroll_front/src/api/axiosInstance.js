@@ -1,7 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config/runtimeConfig';
 
-export const BASE_URL = 'http://localhost:8001/api/v1';
-// export const BASE_URL = 'http://172.16.27.124:3000/api/v1';
+export const BASE_URL = API_BASE_URL;
 
 export const axiosPublic = axios.create({
   baseURL: BASE_URL,

@@ -18,11 +18,8 @@ export function ChatBadgeProvider({ children }) {
         setUnreadTotal(sum);
       }
     } catch (e) {
-      // silently ignore
-      // Retry shortly in case API is not ready yet
-      setTimeout(() => {
-        recomputeUnread();
-      }, 1200);
+      // Avoid recursive retries on auth/network failures.
+      setUnreadTotal(0);
     }
   };
 
