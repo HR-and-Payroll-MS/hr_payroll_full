@@ -39,7 +39,7 @@ import EmployeeAttendanceDetail from './Example/AttendanceExample/EmployeeAttend
 import CVReader from './Example/CVReader';
 import { setLocalData } from './Hooks/useLocalStorage';
 import EmployeeAttendanceList from './Pages/HR_Manager/Attendance/EmployeeAttendanceList';
-import { Checkup3 } from './Example/checkup';
+import { Checkup3 } from './Example/Checkup';
 import ViewEmployeeDetail from './Pages/HR_Manager/Employee Management/singleEmployee/ViewEmployeeDetail';
 import ClockIn from './Pages/clockIn_out/ClockIn';
 import UploadDocuments from './Pages/HR_Manager/Employee Management/UploadDocuments';
