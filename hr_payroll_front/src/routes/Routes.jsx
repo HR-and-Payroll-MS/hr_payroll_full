@@ -12,6 +12,7 @@ import { TableProvider } from '../Context/TableContext';
 import { NetworkProvider } from '../Context/NetworkContext';
 import { AnnouncementProvider } from '../Context/AnnouncementContext';
 import { DataContextProvider } from '../Context/DataContextProvider';
+import { DashboardProvider } from '../Context/DashboardContext';
 
 export default function ProtectedRoutes({ allowedRoles }) {
   const { auth, setAuth, isAuthLoading } = useAuth();
@@ -65,17 +66,19 @@ export default function ProtectedRoutes({ allowedRoles }) {
   return (
     <SocketProvider>
       <NetworkProvider>
-        <NotificationProvider>
-          <AnnouncementProvider>
-            <ProfileProvider>
-              <DataContextProvider>
-                <TableProvider>
-                  <Outlet />
-                </TableProvider>
-              </DataContextProvider>
-            </ProfileProvider>
-          </AnnouncementProvider>
-        </NotificationProvider>
+        <DashboardProvider>
+          <NotificationProvider>
+            <AnnouncementProvider>
+              <ProfileProvider>
+                <DataContextProvider>
+                  <TableProvider>
+                    <Outlet />
+                  </TableProvider>
+                </DataContextProvider>
+              </ProfileProvider>
+            </AnnouncementProvider>
+          </NotificationProvider>
+        </DashboardProvider>
       </NetworkProvider>
     </SocketProvider>
   );
